@@ -1,0 +1,5 @@
+{
+  "name": "Q-Knot Pipeline",
+  "description": "A full-stack topological quantum pipeline for mapping knot invariants onto NISQ IBM hardware using QTop, Qiskit, and Qiskit Pulse.",
+  "requestFramePermissions": []
+}
