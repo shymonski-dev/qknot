@@ -5,9 +5,9 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 ## Current delivery status
 
 - Phases one through seven are complete.
-- Release gate status is green for required checks.
-- Optional live hardware smoke run remains pending until valid IBM credentials are provided.
-- Latest validated release gate commit: `a36709e`.
+- Release gate status is green for all required checks including the Playwright E2E suite.
+- Live hardware smoke run completed against `ibm_fez` (Trefoil, 128 shots, job `d6h151m48nic73ameq3g`, Jones polynomial returned).
+- Latest validated release gate commit: `7c237ac`.
 
 ## What runs where
 
@@ -219,6 +219,24 @@ Notes:
 - Release runbook: `docs/release-runbook.md`
 - Optional live hardware smoke workflow script: `scripts/run-live-hardware-smoke.py`
 
+## End to end tests
+
+The repository ships a Playwright E2E suite covering the full pipeline from the browser.
+
+```bash
+npm run test:e2e         # mocked suite (CI-safe, 11 tests, no IBM credentials required)
+npm run test:e2e:live    # live IBM smoke tests (requires IBM_QUANTUM_TOKEN)
+```
+
+Mocked test coverage:
+- Pipeline happy path: Trefoil, Figure-Eight, and non-catalog knots (Tests 1–3)
+- Error handling: invalid notation, verification failure stub, network abort, server 500 (Tests 4–7)
+- Job execution: submit → poll → result, cancellation, localStorage resume, poll timeout (Tests 8–11)
+
+Live smoke tests (Tests L1–L2) call real IBM backends and gate on `IBM_QUANTUM_TOKEN`.
+
+The Playwright config (`playwright.config.ts`) auto-starts both the backend and Vite dev server when running tests.
+
 ## Development checks
 
 Use Node.js `22.19.0` (or any `22.x`) before running front end checks:
@@ -231,5 +249,8 @@ nvm use 22.19.0
 npm run lint
 npm test
 npm run test:backend
+npm run test:e2e
 npm run build
 ```
+
+`npm run test:all` runs lint, front end unit tests, backend unit tests, and the mocked Playwright E2E suite.
