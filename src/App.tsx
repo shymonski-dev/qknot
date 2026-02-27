@@ -10,6 +10,14 @@ import PulseControl from './components/PulseControl';
 import QuantumErrorCorrection from './components/QuantumErrorCorrection';
 import ExecutionResults from './components/ExecutionResults';
 
+function readTestUrlParam(name: string): number | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const raw = new URLSearchParams(window.location.search).get(name);
+  if (!raw) return undefined;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 export default function App() {
   const [activeStep, setActiveStep] = useState<PipelineStep>('dashboard');
   const [targetBackend, setTargetBackend] = useState<string>('ibm_kyiv');
@@ -200,6 +208,8 @@ export default function App() {
                 executionSettings={executionSettings}
                 setExecutionSettings={setExecutionSettings}
                 onExecutionComplete={handleExecutionComplete}
+                pollIntervalMs={readTestUrlParam('test_poll_ms')}
+                maxPollAttempts={readTestUrlParam('test_max_poll')}
               />
             )}
           </div>
