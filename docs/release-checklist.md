@@ -2,7 +2,7 @@
 
 Last validated: 2026-02-27
 Gate status: green
-Validated commit: pending commit for backend credential and routing contract changes
+Validated commit: `a36709e`
 
 ## Latest validation evidence
 
