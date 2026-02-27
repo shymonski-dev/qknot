@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, Cpu, Database, GitMerge, Layers, Play, Settings, Zap, ShieldAlert } from 'lucide-react';
-import { PipelineStep, KnotData } from './types';
+import { PipelineStep, KnotData, ExecutionSettings, ExperimentResult } from './types';
 import { cn } from './lib/utils';
 import Dashboard from './components/Dashboard';
 import KnotIngestion from './components/KnotIngestion';
@@ -13,6 +13,11 @@ import ExecutionResults from './components/ExecutionResults';
 export default function App() {
   const [activeStep, setActiveStep] = useState<PipelineStep>('dashboard');
   const [targetBackend, setTargetBackend] = useState<string>('ibm_kyiv');
+  const [executionSettings, setExecutionSettings] = useState<ExecutionSettings>({
+    shots: 8192,
+    optimizationLevel: 3,
+    closureMethod: 'trace',
+  });
   const [activeKnot, setActiveKnot] = useState<KnotData | null>({
     id: 'k-1',
     name: 'Trefoil Knot (3_1)',
@@ -21,6 +26,66 @@ export default function App() {
     rootOfUnity: 5,
     status: 'pending',
   });
+
+  const handleKnotCompiled = (dowkerNotation: string, braidWord: string) => {
+    setActiveKnot((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        dowkerNotation,
+        braidWord,
+        status: 'pending',
+        jonesPolynomial: undefined,
+      };
+    });
+  };
+
+  const handleVerificationComplete = () => {
+    setActiveKnot((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        status:
+          prev.status === 'compiled' || prev.status === 'executed'
+            ? prev.status
+            : 'verified',
+      };
+    });
+  };
+
+  const handleCircuitGenerated = () => {
+    setActiveKnot((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        status: 'compiled',
+        jonesPolynomial: undefined,
+      };
+    });
+  };
+
+  const handleExecutionComplete = (experimentResult: ExperimentResult) => {
+    setActiveKnot((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        status: 'executed',
+        jonesPolynomial: experimentResult.jones_polynomial,
+      };
+    });
+  };
 
   const steps: { id: PipelineStep; label: string; icon: React.ElementType }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: Activity },
@@ -106,13 +171,33 @@ export default function App() {
         
         <div className="flex-1 overflow-auto p-6">
           <div className="max-w-5xl mx-auto h-full">
-            {activeStep === 'dashboard' && <Dashboard targetBackend={targetBackend} />}
-            {activeStep === 'ingestion' && <KnotIngestion activeKnot={activeKnot} setActiveKnot={setActiveKnot} />}
-            {activeStep === 'verification' && <TopologicalVerification activeKnot={activeKnot} />}
-            {activeStep === 'circuit' && <CircuitGeneration activeKnot={activeKnot} targetBackend={targetBackend} />}
+            {activeStep === 'dashboard' && <Dashboard targetBackend={targetBackend} activeKnot={activeKnot} />}
+            {activeStep === 'ingestion' && (
+              <KnotIngestion activeKnot={activeKnot} onCompiled={handleKnotCompiled} />
+            )}
+            {activeStep === 'verification' && (
+              <TopologicalVerification activeKnot={activeKnot} onVerified={handleVerificationComplete} />
+            )}
+            {activeStep === 'circuit' && (
+              <CircuitGeneration
+                activeKnot={activeKnot}
+                targetBackend={targetBackend}
+                executionSettings={executionSettings}
+                setExecutionSettings={setExecutionSettings}
+                onGenerateCircuit={handleCircuitGenerated}
+              />
+            )}
             {activeStep === 'pulse' && <PulseControl activeKnot={activeKnot} />}
             {activeStep === 'qec' && <QuantumErrorCorrection activeKnot={activeKnot} />}
-            {activeStep === 'execution' && <ExecutionResults activeKnot={activeKnot} targetBackend={targetBackend} />}
+            {activeStep === 'execution' && (
+              <ExecutionResults
+                activeKnot={activeKnot}
+                targetBackend={targetBackend}
+                executionSettings={executionSettings}
+                setExecutionSettings={setExecutionSettings}
+                onExecutionComplete={handleExecutionComplete}
+              />
+            )}
           </div>
         </div>
       </main>

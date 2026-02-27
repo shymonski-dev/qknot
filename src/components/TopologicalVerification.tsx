@@ -4,17 +4,22 @@ import { useState } from 'react';
 
 interface Props {
   activeKnot: KnotData | null;
+  onVerified: () => void;
 }
 
-export default function TopologicalVerification({ activeKnot }: Props) {
+function isVerifiedStatus(status: KnotData['status'] | undefined) {
+  return status === 'verified' || status === 'compiled' || status === 'executed';
+}
+
+export default function TopologicalVerification({ activeKnot, onVerified }: Props) {
   const [isSimulating, setIsSimulating] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
+  const isVerified = isVerifiedStatus(activeKnot?.status);
 
   const handleSimulate = () => {
     setIsSimulating(true);
     setTimeout(() => {
       setIsSimulating(false);
-      setIsVerified(true);
+      onVerified();
     }, 2000);
   };
 
