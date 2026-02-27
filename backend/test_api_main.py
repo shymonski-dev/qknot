@@ -60,6 +60,16 @@ def _valid_runtime_service_request(**overrides):
     return backend_main.RuntimeServiceRequest(**payload)
 
 
+def _valid_knot_ingestion_request(**overrides):
+    if backend_main is None:
+        raise RuntimeError("backend.main could not be imported for tests.")
+    payload = {
+        "dowker_notation": " 4 6 2 ",
+    }
+    payload.update(overrides)
+    return backend_main.KnotIngestionRequest(**payload)
+
+
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
 class ExperimentRequestModelTests(unittest.TestCase):
     def test_normalizes_string_fields(self):
@@ -105,6 +115,17 @@ class RuntimeServiceRequestModelTests(unittest.TestCase):
     def test_blank_runtime_instance_becomes_none(self):
         req = _valid_runtime_service_request(runtime_instance="   ")
         self.assertIsNone(req.runtime_instance)
+
+
+@unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
+class KnotIngestionRequestModelTests(unittest.TestCase):
+    def test_normalizes_string_fields(self):
+        req = _valid_knot_ingestion_request()
+        self.assertEqual(req.dowker_notation, "4 6 2")
+
+    def test_rejects_blank_dowker_notation(self):
+        with self.assertRaises(ValidationError):
+            _valid_knot_ingestion_request(dowker_notation="   ")
 
 
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
@@ -325,6 +346,50 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
                 "hub/group/project",
             ),
         )
+
+    def test_knot_ingestion_route_uses_expected_threadpool_target(self):
+        client = TestClient(backend_main.app)
+
+        ingestion_payload = {
+            "dowker_notation_normalized": "4 6 2",
+            "crossing_count": 3,
+            "knot_name": "Trefoil Knot (3_1)",
+            "braid_word": "s1 s2^-1 s1 s2^-1",
+            "root_of_unity": 5,
+            "is_catalog_match": True,
+        }
+
+        run_in_threadpool_mock = AsyncMock(return_value=ingestion_payload)
+
+        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+            response = client.post(
+                "/api/knot/ingest",
+                json={
+                    "dowker_notation": " 4 6 2 ",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), ingestion_payload)
+        run_in_threadpool_mock.assert_awaited_once()
+        args = run_in_threadpool_mock.await_args.args
+        self.assertIs(args[0], backend_main.compile_dowker_notation)
+        self.assertEqual(args[1:], ("4 6 2",))
+
+    def test_knot_ingestion_route_maps_value_error_to_422(self):
+        client = TestClient(backend_main.app)
+        run_in_threadpool_mock = AsyncMock(side_effect=ValueError("Dowker notation token '3' must be even."))
+
+        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+            response = client.post(
+                "/api/knot/ingest",
+                json={
+                    "dowker_notation": "4 3 2",
+                },
+            )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"detail": "Dowker notation token '3' must be even."})
 
 
 if __name__ == "__main__":

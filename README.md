@@ -17,6 +17,7 @@ Notes:
 - The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
 - A real IBM Quantum token is required for hardware runs.
 - Some IBM accounts also require a runtime instance identifier.
+- Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
 
 ## Quick start (standalone local testing)
 
@@ -96,7 +97,19 @@ In the `Execution & Results` screen:
 5. Set shots.
 6. Run the job.
 
+## Knot ingestion behavior
+
+- The `Knot Ingestion` screen now calls `POST /api/knot/ingest` on the Python backend.
+- Dowker notation is validated server side before braid generation.
+- Validation errors are shown directly in the user interface.
+
 ## Development checks
+
+Use Node.js `22.19.0` (or any `22.x`) before running front end checks:
+
+```bash
+nvm use 22.19.0
+```
 
 ```bash
 npm run lint

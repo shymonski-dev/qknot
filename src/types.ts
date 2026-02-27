@@ -50,6 +50,15 @@ export interface BackendCatalogResponse {
   backends: BackendSummary[];
 }
 
+export interface KnotIngestionResponse {
+  dowker_notation_normalized: string;
+  crossing_count: number;
+  knot_name: string;
+  braid_word: string;
+  root_of_unity: number;
+  is_catalog_match: boolean;
+}
+
 export interface KnotData {
   id: string;
   name: string;

@@ -1,4 +1,5 @@
-import { expect } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, expect, vi } from 'vitest';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
 expect.extend(matchers);
@@ -63,3 +64,12 @@ installStorageShim('sessionStorage');
 if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = ResizeObserverMock as typeof ResizeObserver;
 }
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+});

@@ -9,6 +9,26 @@ if TYPE_CHECKING:
 
 BRAID_TOKEN_RE = re.compile(r"^s([12])(\^-1)?$")
 AUTO_RUNTIME_CHANNELS = ("ibm_quantum_platform", "ibm_cloud", "ibm_quantum")
+DEFAULT_ROOT_OF_UNITY = 5
+
+# Catalog entries provide deterministic outputs for known notations.
+_DOWKER_BRAID_CATALOG = {
+    (4, 6, 2): {
+        "knot_name": "Trefoil Knot (3_1)",
+        "braid_word": "s1 s2^-1 s1 s2^-1",
+        "root_of_unity": 5,
+    },
+    (4, 6, 8, 2): {
+        "knot_name": "Figure-Eight Knot (4_1)",
+        "braid_word": "s1 s2^-1 s1 s2 s1^-1 s2",
+        "root_of_unity": 5,
+    },
+    (6, 8, 10, 2, 4): {
+        "knot_name": "Cinquefoil Knot (5_1)",
+        "braid_word": "s1 s2 s1 s2 s1 s2^-1 s1",
+        "root_of_unity": 5,
+    },
+}
 
 
 def parse_braid_word(braid_word: str):
@@ -29,6 +49,81 @@ def parse_braid_word(braid_word: str):
         parsed.append((int(match.group(1)), bool(match.group(2))))
 
     return parsed
+
+
+def _normalize_dowker_tokens(dowker_notation: str):
+    if not dowker_notation or not dowker_notation.strip():
+        raise ValueError("Dowker notation cannot be empty.")
+
+    normalized_text = dowker_notation.replace(",", " ")
+    raw_tokens = [token for token in normalized_text.split() if token]
+    if len(raw_tokens) < 3:
+        raise ValueError("Dowker notation must include at least three integer entries.")
+
+    parsed_tokens = []
+    for token in raw_tokens:
+        try:
+            value = int(token)
+        except ValueError as exc:
+            raise ValueError(f"Dowker notation token '{token}' is not a valid integer.") from exc
+
+        if value == 0:
+            raise ValueError("Dowker notation cannot contain zero values.")
+        if abs(value) % 2 != 0:
+            raise ValueError(f"Dowker notation token '{token}' must be even.")
+
+        parsed_tokens.append(value)
+
+    absolute_values = [abs(token) for token in parsed_tokens]
+    if len(set(absolute_values)) != len(absolute_values):
+        raise ValueError("Dowker notation values must be unique by absolute value.")
+
+    expected_values = set(range(2, (2 * len(parsed_tokens)) + 1, 2))
+    if set(absolute_values) != expected_values:
+        raise ValueError(
+            "Dowker notation absolute values must be a complete even sequence "
+            f"from 2 to {2 * len(parsed_tokens)}."
+        )
+
+    return parsed_tokens
+
+
+def _compile_tokens_to_braid(parsed_tokens: list[int]):
+    # Phase two compiler fallback keeps braid tokens within currently supported generators.
+    braid_tokens = []
+    for index, token in enumerate(parsed_tokens):
+        generator = "s1" if index % 2 == 0 else "s2"
+        if token < 0:
+            braid_tokens.append(f"{generator}^-1")
+        else:
+            braid_tokens.append(generator)
+    return " ".join(braid_tokens)
+
+
+def compile_dowker_notation(dowker_notation: str):
+    parsed_tokens = _normalize_dowker_tokens(dowker_notation)
+    absolute_key = tuple(abs(token) for token in parsed_tokens)
+    catalog_entry = _DOWKER_BRAID_CATALOG.get(absolute_key)
+
+    if catalog_entry:
+        knot_name = catalog_entry["knot_name"]
+        braid_word = catalog_entry["braid_word"]
+        root_of_unity = catalog_entry["root_of_unity"]
+        is_catalog_match = True
+    else:
+        knot_name = f"Dowker Knot ({len(parsed_tokens)} crossings)"
+        braid_word = _compile_tokens_to_braid(parsed_tokens)
+        root_of_unity = DEFAULT_ROOT_OF_UNITY
+        is_catalog_match = False
+
+    return {
+        "dowker_notation_normalized": " ".join(str(token) for token in parsed_tokens),
+        "crossing_count": len(parsed_tokens),
+        "knot_name": knot_name,
+        "braid_word": braid_word,
+        "root_of_unity": root_of_unity,
+        "is_catalog_match": is_catalog_match,
+    }
 
 
 def resolve_backend_name(backend) -> str:

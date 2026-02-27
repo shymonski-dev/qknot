@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import ExecutionResults from '../ExecutionResults';
@@ -77,13 +77,6 @@ function jsonResponse(payload: unknown, status = 200): Response {
     json: async () => payload,
   } as Response;
 }
-
-afterEach(() => {
-  cleanup();
-  window.localStorage.clear();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
 
 describe('ExecutionResults', () => {
   it('disables execution when the circuit stage is not complete', () => {
