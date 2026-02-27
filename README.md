@@ -7,7 +7,7 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 - Phases one through seven are complete.
 - Release gate status is green for required checks.
 - Optional live hardware smoke run remains pending until valid IBM credentials are provided.
-- Latest validated release gate commit: pending current local changes.
+- Latest validated release gate commit: `a36709e`.
 
 ## What runs where
 
