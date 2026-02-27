@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from .quantum_engine import (
         cancel_knot_experiment,
+        compile_dowker_notation,
         list_accessible_backends,
         poll_knot_experiment_result,
         run_knot_experiment,
@@ -16,6 +17,7 @@ try:
 except ImportError:
     from quantum_engine import (
         cancel_knot_experiment,
+        compile_dowker_notation,
         list_accessible_backends,
         poll_knot_experiment_result,
         run_knot_experiment,
@@ -109,6 +111,18 @@ class RuntimeServiceRequest(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+
+class KnotIngestionRequest(BaseModel):
+    dowker_notation: str = Field(min_length=1)
+
+    @field_validator("dowker_notation")
+    @classmethod
+    def strip_and_validate_non_empty(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field cannot be blank.")
+        return normalized
+
 @app.post("/api/run-experiment")
 async def run_experiment(req: ExperimentRequest):
     try:
@@ -191,6 +205,20 @@ async def list_backends(req: RuntimeServiceRequest):
             req.ibm_token,
             req.runtime_channel,
             req.runtime_instance,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/knot/ingest")
+async def ingest_knot(req: KnotIngestionRequest):
+    try:
+        result = await run_in_threadpool(
+            compile_dowker_notation,
+            req.dowker_notation,
         )
         return result
     except ValueError as e:

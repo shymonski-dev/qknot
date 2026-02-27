@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, Cpu, Database, GitMerge, Layers, Play, Settings, Zap, ShieldAlert } from 'lucide-react';
-import { PipelineStep, KnotData, ExecutionSettings, ExperimentResult } from './types';
+import { PipelineStep, KnotData, ExecutionSettings, ExperimentResult, KnotIngestionResponse } from './types';
 import { cn } from './lib/utils';
 import Dashboard from './components/Dashboard';
 import KnotIngestion from './components/KnotIngestion';
@@ -27,7 +27,7 @@ export default function App() {
     status: 'pending',
   });
 
-  const handleKnotCompiled = (dowkerNotation: string, braidWord: string) => {
+  const handleKnotCompiled = (compiledKnot: KnotIngestionResponse) => {
     setActiveKnot((prev) => {
       if (!prev) {
         return prev;
@@ -35,8 +35,10 @@ export default function App() {
 
       return {
         ...prev,
-        dowkerNotation,
-        braidWord,
+        name: compiledKnot.knot_name,
+        dowkerNotation: compiledKnot.dowker_notation_normalized,
+        braidWord: compiledKnot.braid_word,
+        rootOfUnity: compiledKnot.root_of_unity,
         status: 'pending',
         jonesPolynomial: undefined,
       };
