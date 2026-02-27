@@ -2,6 +2,13 @@
 
 Front end plus Python back end for submitting a simplified knot-evaluation circuit to IBM Quantum hardware.
 
+## Current delivery status
+
+- Phases one through seven are complete.
+- Release gate status is green for required checks.
+- Optional live hardware smoke run remains pending until valid IBM credentials are provided.
+- Latest validated release gate commit: `cf60193`.
+
 ## What runs where
 
 - Front end: React and Vite (`http://localhost:3000`)
