@@ -10,8 +10,8 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 
 ## Prerequisites
 
-- Node.js 22.x
-- Python 3.10, 3.11, or 3.12 recommended
+- Option one (container): Docker Desktop
+- Option two (desktop launcher): Node.js 22.x and Python 3.10, 3.11, or 3.12
 
 Notes:
 - The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
@@ -19,30 +19,73 @@ Notes:
 - Some IBM accounts also require a runtime instance identifier.
 - Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
 
-## Quick start (standalone local testing)
+## Quick start (container, no Python setup)
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:8000`.
+
+What this does:
+- Builds the front end inside the container image
+- Installs backend dependencies inside the container image
+- Serves both user interface and API from one container on port `8000`
+
+Stop with `Ctrl + C`, then run `docker compose down`.
+
+## Quick start (desktop standalone)
 
 From the repository root:
 
 ```bash
 npm install
-npm run dev:standalone
+npm run start:standalone
 ```
 
 What this does:
 - Automatically creates `backend/.venv` when needed
 - Installs or refreshes backend Python dependencies when `backend/requirements.txt` changes
-- Starts the Python backend on `http://localhost:8000`
-- Starts the user interface on `http://localhost:3000`
+- Uses existing `dist` output, or builds it if missing
+- Starts a single standalone runtime on `http://localhost:8000`
 
-You can stop both services with `Ctrl + C`.
+You can stop with `Ctrl + C`.
 
 If your machine has multiple Python versions and you want to force one:
 
 ```bash
-QKNOT_PYTHON=python3.12 npm run dev:standalone
+QKNOT_PYTHON=python3.12 npm run start:standalone
 ```
 
-## Manual local setup
+If you need to force a fresh front end build before start:
+
+```bash
+QKNOT_FORCE_FRONTEND_BUILD=1 npm run start:standalone
+```
+
+## Desktop launcher packaging
+
+From the repository root:
+
+```bash
+npm install
+npm run package:desktop
+```
+
+This creates platform launcher files in `release/desktop`:
+- `start-macos.command`
+- `start-linux.sh`
+- `start-windows.bat`
+
+If you want the packaging step to rebuild `dist` first:
+
+```bash
+QKNOT_PACKAGE_WITH_BUILD=1 npm run package:desktop
+```
+
+## Manual local setup (advanced)
 
 ### 1. Install front end dependencies
 

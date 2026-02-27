@@ -1,0 +1,9 @@
+.git
+.DS_Store
+node_modules
+dist
+coverage
+release
+backend/.venv
+backend/__pycache__
+*.log

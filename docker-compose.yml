@@ -1,0 +1,10 @@
+services:
+  qknot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: qknot-standalone:latest
+    ports:
+      - "8000:8000"
+    environment:
+      QKNOT_SERVE_FRONTEND: "1"
