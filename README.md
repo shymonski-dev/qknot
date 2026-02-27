@@ -24,6 +24,7 @@ Notes:
 - The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
 - A real IBM Quantum token is required for hardware runs.
 - Some IBM accounts also require a runtime instance identifier.
+- Front end environment variables are not required for local runtime.
 - Node.js 22.x is only required for development workflows and local front end rebuilds.
 - Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
 
