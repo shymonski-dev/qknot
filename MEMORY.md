@@ -32,6 +32,7 @@
 
 ## Phase 7: Release Gate
 - Add end to end mocked submission and polling checks.
+- Add Playwright browser E2E test suite (11 mocked tests, 2 live smoke tests).
 - Add optional live hardware smoke run workflow.
 - Exit criteria: release checklist is green with published runbook.
 
@@ -42,4 +43,4 @@
 - Phase 4: completed (backend circuit generation route returns circuit summaries, and execution submit enforces signature consistency with generated metadata).
 - Phase 5: completed (parser accepts expanded braid tokens, verification handles multi-strand connectivity checks, and execution blocks invalid non-contiguous braid problems before submit).
 - Phase 6: completed (container path uses committed frontend distribution for faster builds, repository ships launcher files for macOS Linux and Windows, and standalone startup works through Python-only launcher flow without local Node requirement).
-- Phase 7: completed (release checklist and runbook are published, mocked end to end submit poll backend check is added, and optional live hardware smoke workflow script is available).
+- Phase 7: completed (release checklist and runbook are published, mocked end to end submit poll backend check is added, Playwright E2E suite added with 11 mocked tests and 2 live smoke tests, and live hardware smoke run completed against ibm_fez with Jones polynomial result returned).

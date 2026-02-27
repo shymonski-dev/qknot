@@ -25,8 +25,9 @@ npm run build
 
 Expected result:
 - type check passes
-- frontend tests pass
-- backend tests pass
+- frontend unit tests pass
+- backend unit tests pass
+- Playwright mocked E2E suite passes (11 tests)
 - production build completes
 
 Style note:
@@ -75,7 +76,28 @@ Command:
 python3 -m unittest discover -s backend -p "test_*.py"
 ```
 
-## 5. Optional Live Hardware Smoke Gate
+## 5. Frontend E2E Test Gate
+
+Run the Playwright mocked test suite independently to confirm all browser-level flows pass:
+
+```bash
+npm run test:e2e
+```
+
+Expected result: 11 tests pass across three suites:
+- `e2e/mocked/pipeline.spec.ts` — Tests 1–3: Trefoil, Figure-Eight, and non-catalog knot happy paths
+- `e2e/mocked/errors.spec.ts` — Tests 4–7: invalid notation, verification failure stub, network abort, server 500
+- `e2e/mocked/jobs.spec.ts` — Tests 8–11: submit → poll → result, cancellation, localStorage resume, poll timeout
+
+The Playwright config auto-starts the backend (`IBM_QUANTUM_TOKEN=test`) and the Vite dev server when this command runs, so no manual server startup is required.
+
+To run with a visible browser for debugging:
+
+```bash
+npx playwright test --project=mocked --headed
+```
+
+## 6. Optional Live Hardware Smoke Gate
 
 This step is optional and should run only when valid hardware credentials are available.
 
@@ -83,15 +105,18 @@ Pre-flight guidance:
 - Use an explicit runtime channel for first live run.
 - Recommended value: `ibm_cloud`.
 - Avoid `auto` on first run because some runtime client versions may return a channel error before fallback is attempted.
+- Recommended backend: `ibm_fez` (156 qubits). Alternatives: `ibm_marrakesh`, `ibm_torino`.
+
+Option A — Python smoke script:
 
 1. Start backend runtime (`docker compose up -d` or local standalone launcher).
 2. Set environment variables:
    ```bash
    export IBM_QUANTUM_TOKEN="<your-token>"
-   export QKNOT_BACKEND_NAME="ibm_kyiv"
+   export QKNOT_BACKEND_NAME="ibm_fez"
    export QKNOT_RUNTIME_CHANNEL="ibm_cloud"
    # Optional:
-   # export QKNOT_RUNTIME_INSTANCE="<instance>"
+   # export QKNOT_RUNTIME_INSTANCE="<crn>"
    # export QKNOT_BRAID_WORD="s1 s2^-1 s1 s2^-1"
    ```
 3. Run smoke workflow:
@@ -100,3 +125,11 @@ Pre-flight guidance:
    ```
 4. Archive the output payload in release notes.
 5. If the backend is not running, the smoke script exits with a network error and nonzero status.
+
+Option B — Playwright live smoke tests:
+
+```bash
+IBM_QUANTUM_TOKEN="<your-token>" npm run test:e2e:live
+```
+
+Tests L1–L2 list available backends and submit a Trefoil job against the first available backend, then cancel it before polling completes.
