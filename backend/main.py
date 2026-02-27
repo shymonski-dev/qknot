@@ -1,9 +1,13 @@
+import os
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field, field_validator
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, field_validator
 
 try:
     from .quantum_engine import (
@@ -29,6 +33,8 @@ except ImportError:
     )
 
 app = FastAPI(title="Q-Knot IBM Quantum Backend")
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DIST_DIR = ROOT_DIR / "dist"
 
 # Allow CORS for the React frontend
 app.add_middleware(
@@ -306,6 +312,31 @@ async def generate_knot_circuit(req: CircuitGenerationRequest):
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+def _env_flag_is_enabled(variable_name: str) -> bool:
+    value = os.getenv(variable_name, "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+if _env_flag_is_enabled("QKNOT_SERVE_FRONTEND") and DIST_DIR.exists():
+    assets_dir = DIST_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend-assets")
+
+    @app.get("/", include_in_schema=False)
+    async def serve_frontend_root():
+        return FileResponse(DIST_DIR / "index.html")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_frontend_path(full_path: str):
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        candidate = DIST_DIR / full_path
+        if candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(DIST_DIR / "index.html")
 
 if __name__ == "__main__":
     import uvicorn
