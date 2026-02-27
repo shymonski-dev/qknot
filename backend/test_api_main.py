@@ -28,6 +28,7 @@ def _valid_request(**overrides):
         "braid_word": " s1 s2^-1 ",
         "shots": 1024,
         "optimization_level": 2,
+        "closure_method": "trace",
         "runtime_channel": "ibm_quantum_platform",
         "runtime_instance": "  hub/group/project  ",
     }
@@ -68,6 +69,29 @@ def _valid_knot_ingestion_request(**overrides):
     }
     payload.update(overrides)
     return backend_main.KnotIngestionRequest(**payload)
+
+
+def _valid_knot_verification_request(**overrides):
+    if backend_main is None:
+        raise RuntimeError("backend.main could not be imported for tests.")
+    payload = {
+        "braid_word": " s1 s2^-1 s1 ",
+    }
+    payload.update(overrides)
+    return backend_main.KnotVerificationRequest(**payload)
+
+
+def _valid_circuit_generation_request(**overrides):
+    if backend_main is None:
+        raise RuntimeError("backend.main could not be imported for tests.")
+    payload = {
+        "braid_word": " s1 s2^-1 s1 ",
+        "optimization_level": 2,
+        "closure_method": "trace",
+        "target_backend": " ibm_kyiv ",
+    }
+    payload.update(overrides)
+    return backend_main.CircuitGenerationRequest(**payload)
 
 
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
@@ -129,6 +153,34 @@ class KnotIngestionRequestModelTests(unittest.TestCase):
 
 
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
+class KnotVerificationRequestModelTests(unittest.TestCase):
+    def test_normalizes_string_fields(self):
+        req = _valid_knot_verification_request()
+        self.assertEqual(req.braid_word, "s1 s2^-1 s1")
+
+    def test_rejects_blank_braid_word(self):
+        with self.assertRaises(ValidationError):
+            _valid_knot_verification_request(braid_word="   ")
+
+
+@unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
+class CircuitGenerationRequestModelTests(unittest.TestCase):
+    def test_normalizes_string_fields(self):
+        req = _valid_circuit_generation_request()
+        self.assertEqual(req.braid_word, "s1 s2^-1 s1")
+        self.assertEqual(req.target_backend, "ibm_kyiv")
+        self.assertEqual(req.closure_method, "trace")
+
+    def test_blank_target_backend_becomes_none(self):
+        req = _valid_circuit_generation_request(target_backend="   ")
+        self.assertIsNone(req.target_backend)
+
+    def test_rejects_blank_braid_word(self):
+        with self.assertRaises(ValidationError):
+            _valid_circuit_generation_request(braid_word="   ")
+
+
+@unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
 class ApiHandlerTests(unittest.IsolatedAsyncioTestCase):
     async def test_run_experiment_success_passes_expected_arguments(self):
         req = _valid_request()
@@ -158,6 +210,7 @@ class ApiHandlerTests(unittest.IsolatedAsyncioTestCase):
                 "s1 s2^-1",
                 1024,
                 2,
+                "trace",
                 "ibm_quantum_platform",
                 "hub/group/project",
             ),
@@ -223,6 +276,7 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
                     "braid_word": " s1 s2^-1 ",
                     "shots": 1024,
                     "optimization_level": 2,
+                    "closure_method": "trace",
                     "runtime_channel": "ibm_quantum_platform",
                     "runtime_instance": "  hub/group/project  ",
                 },
@@ -254,6 +308,7 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
                 "s1 s2^-1",
                 1024,
                 2,
+                "trace",
                 "ibm_quantum_platform",
                 "hub/group/project",
             ),
@@ -390,6 +445,115 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json(), {"detail": "Dowker notation token '3' must be even."})
+
+    def test_knot_verification_route_uses_expected_threadpool_target(self):
+        client = TestClient(backend_main.app)
+
+        verification_payload = {
+            "is_verified": True,
+            "status": "verified",
+            "detail": "Topological verification passed with connected three-strand braid evidence.",
+            "evidence": {
+                "token_count": 4,
+                "generator_counts": {"s1": 2, "s2": 2},
+                "inverse_count": 2,
+                "net_writhe": 0,
+                "generator_switches": 3,
+                "alternation_ratio": 1.0,
+                "strand_connectivity": "connected-3-strand",
+            },
+        }
+
+        run_in_threadpool_mock = AsyncMock(return_value=verification_payload)
+
+        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+            response = client.post(
+                "/api/knot/verify",
+                json={
+                    "braid_word": " s1 s2^-1 s1 s2^-1 ",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), verification_payload)
+        run_in_threadpool_mock.assert_awaited_once()
+        args = run_in_threadpool_mock.await_args.args
+        self.assertIs(args[0], backend_main.verify_topological_mapping)
+        self.assertEqual(args[1:], ("s1 s2^-1 s1 s2^-1",))
+
+    def test_knot_verification_route_maps_value_error_to_422(self):
+        client = TestClient(backend_main.app)
+        run_in_threadpool_mock = AsyncMock(side_effect=ValueError("Unsupported braid token 's3'."))
+
+        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+            response = client.post(
+                "/api/knot/verify",
+                json={
+                    "braid_word": "s1 s3",
+                },
+            )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"detail": "Unsupported braid token 's3'."})
+
+    def test_knot_circuit_generation_route_uses_expected_threadpool_target(self):
+        client = TestClient(backend_main.app)
+
+        generation_payload = {
+            "target_backend": "ibm_kyiv",
+            "optimization_level": 2,
+            "closure_method": "trace",
+            "braid_word": "s1 s2^-1 s1",
+            "circuit_summary": {
+                "depth": 12,
+                "size": 20,
+                "width": 4,
+                "num_qubits": 3,
+                "num_clbits": 1,
+                "two_qubit_gate_count": 6,
+                "measurement_count": 1,
+                "operation_counts": {"cx": 4, "cp": 2, "h": 2, "measure": 1},
+                "signature": "abc123",
+            },
+        }
+
+        run_in_threadpool_mock = AsyncMock(return_value=generation_payload)
+
+        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+            response = client.post(
+                "/api/knot/circuit/generate",
+                json={
+                    "braid_word": " s1 s2^-1 s1 ",
+                    "optimization_level": 2,
+                    "closure_method": "trace",
+                    "target_backend": " ibm_kyiv ",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), generation_payload)
+        run_in_threadpool_mock.assert_awaited_once()
+        args = run_in_threadpool_mock.await_args.args
+        self.assertIs(args[0], backend_main.generate_knot_circuit_artifact)
+        self.assertEqual(args[1:], ("s1 s2^-1 s1", 2, "trace", "ibm_kyiv"))
+
+    def test_knot_circuit_generation_route_maps_value_error_to_422(self):
+        client = TestClient(backend_main.app)
+        run_in_threadpool_mock = AsyncMock(side_effect=ValueError("Closure method must be either 'trace' or 'plat'."))
+
+        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+            response = client.post(
+                "/api/knot/circuit/generate",
+                json={
+                    "braid_word": "s1 s2^-1 s1",
+                    "optimization_level": 2,
+                    "closure_method": "trace",
+                    "target_backend": "ibm_kyiv",
+                },
+            )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"detail": "Closure method must be either 'trace' or 'plat'."})
 
 
 if __name__ == "__main__":

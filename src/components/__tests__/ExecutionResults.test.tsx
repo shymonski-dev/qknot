@@ -171,6 +171,7 @@ describe('ExecutionResults', () => {
       braid_word: compiledKnot.braidWord,
       shots: 2048,
       optimization_level: 2,
+      closure_method: 'trace',
       runtime_channel: 'ibm_cloud',
       runtime_instance: 'hub/group/project',
     });
@@ -227,6 +228,7 @@ describe('ExecutionResults', () => {
     const submitInit = fetchMock.mock.calls[0]?.[1];
     const submitBody = JSON.parse(String(submitInit?.body));
     expect(submitBody.runtime_channel).toBeUndefined();
+    expect(submitBody.closure_method).toBe('trace');
 
     const pollInit = fetchMock.mock.calls[1]?.[1];
     const pollBody = JSON.parse(String(pollInit?.body));
