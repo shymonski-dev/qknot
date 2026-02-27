@@ -96,14 +96,14 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
           
           <div className="space-y-4">
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-md p-3 flex items-start gap-2">
+              <div data-testid="ingest-error" className="bg-red-500/10 border border-red-500/20 rounded-md p-3 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                 <p className="text-xs text-red-300">{error}</p>
               </div>
             )}
 
             {statusMessage && !error && (
-              <div className="bg-zinc-800/50 border border-zinc-700 rounded-md p-3">
+              <div data-testid="ingest-status" className="bg-zinc-800/50 border border-zinc-700 rounded-md p-3">
                 <p className="text-xs text-zinc-300">{statusMessage}</p>
               </div>
             )}
@@ -113,6 +113,7 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
                 Dowker Notation
               </label>
               <input
+                data-testid="dowker-input"
                 type="text"
                 value={notation}
                 onChange={(e) => setNotation(e.target.value)}
@@ -122,6 +123,7 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
             </div>
 
             <button
+              data-testid="compile-button"
               onClick={handleCompile}
               disabled={isCompiling || !notation.trim()}
               className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-medium py-2.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -153,7 +155,7 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
                   <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
                     Braid Word
                   </label>
-                  <div className="font-mono text-lg text-zinc-200 tracking-wider">
+                  <div data-testid="braid-word-result" className="font-mono text-lg text-zinc-200 tracking-wider">
                     {activeKnot.braidWord}
                   </div>
                 </div>

@@ -105,14 +105,14 @@ export default function TopologicalVerification({ activeKnot, onVerified }: Prop
             
             <div className="space-y-4">
               {error && (
-                <div className="bg-red-500/10 border border-red-500/20 rounded-md p-3 flex items-start gap-2">
+                <div data-testid="verify-error" className="bg-red-500/10 border border-red-500/20 rounded-md p-3 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                   <p className="text-xs text-red-300">{error}</p>
                 </div>
               )}
 
               {verificationResult && !error && (
-                <div className="bg-zinc-800/50 border border-zinc-700 rounded-md p-3">
+                <div data-testid="verify-status" className="bg-zinc-800/50 border border-zinc-700 rounded-md p-3">
                   <p className="text-xs text-zinc-300">{verificationResult.detail}</p>
                 </div>
               )}
@@ -127,6 +127,7 @@ export default function TopologicalVerification({ activeKnot, onVerified }: Prop
               </div>
 
               <button
+                data-testid="verify-button"
                 onClick={handleVerify}
                 disabled={isVerifying || !activeKnot?.braidWord?.trim()}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-medium py-2.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -144,7 +145,7 @@ export default function TopologicalVerification({ activeKnot, onVerified }: Prop
           </div>
 
           {isVerified && (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div data-testid="verification-passed" className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center gap-3 text-emerald-400 mb-4">
                 <ShieldCheck className="w-5 h-5" />
                 <h3 className="font-medium">Verification Passed</h3>

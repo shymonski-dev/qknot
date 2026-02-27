@@ -589,6 +589,7 @@ export default function ExecutionResults({
             </div>
           </div>
           <button
+            data-testid="resume-job-button"
             onClick={handleResumePendingJob}
             className="w-full bg-amber-400/80 hover:bg-amber-400 text-amber-950 font-medium py-2.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -598,7 +599,7 @@ export default function ExecutionResults({
       )}
 
       {visibleError && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
+        <div data-testid="execution-error" className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
           <div>
             <h3 className="text-sm font-medium text-red-400">Execution Error</h3>
@@ -618,11 +619,11 @@ export default function ExecutionResults({
       )}
 
       {!visibleError && hasInFlightJob && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
+        <div data-testid="job-in-flight" className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
           <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div>
             <h3 className="text-sm font-medium text-amber-400">Execution In Progress</h3>
-            <p className="text-xs text-amber-400/80 mt-1">
+            <p data-testid="job-status-text" className="text-xs text-amber-400/80 mt-1">
               Job {jobStatus.job_id} is currently {jobStatus.status}
               {jobStatus.backend ? ` on ${jobStatus.backend}` : ''}.
             </p>
@@ -701,6 +702,7 @@ export default function ExecutionResults({
                   Runtime Instance (optional)
                 </label>
                 <input
+                  data-testid="runtime-instance-input"
                   type="text"
                   value={runtimeInstance}
                   onChange={(e) => setRuntimeInstance(e.target.value)}
@@ -732,6 +734,7 @@ export default function ExecutionResults({
 
               <div className="space-y-3">
                 <button
+                  data-testid="load-backends-button"
                   type="button"
                   onClick={handleLoadBackends}
                   disabled={isLoadingBackends}
@@ -745,7 +748,7 @@ export default function ExecutionResults({
                 )}
 
                 {backendCatalog && (
-                  <div className="rounded-md border border-zinc-800 bg-[#0a0a0a] p-3 space-y-2">
+                  <div data-testid="backend-catalog" className="rounded-md border border-zinc-800 bg-[#0a0a0a] p-3 space-y-2">
                     <p className="text-xs text-zinc-400">
                       Runtime channel in use:{' '}
                       <span className="font-mono text-zinc-300">{backendCatalog.runtime_channel_used || 'unknown'}</span>
@@ -771,7 +774,8 @@ export default function ExecutionResults({
                 )}
               </div>
 
-              <button 
+              <button
+                data-testid="execute-button"
                 onClick={handleExecute}
                 disabled={isExecuting || !canExecute || shotInputError !== null}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -788,6 +792,7 @@ export default function ExecutionResults({
 
               {hasInFlightJob && (
                 <button
+                  data-testid="cancel-job-button"
                   type="button"
                   onClick={handleCancelJob}
                   disabled={isCancelling}
@@ -807,7 +812,7 @@ export default function ExecutionResults({
                 <BarChart3 className="w-5 h-5 text-blue-500" />
                 <h3 className="font-medium text-zinc-200">Probability Distribution</h3>
               </div>
-              <span className="px-2 py-1 bg-zinc-800 rounded text-xs font-mono text-zinc-400">
+              <span data-testid="job-id-display" className="px-2 py-1 bg-zinc-800 rounded text-xs font-mono text-zinc-400">
                 {hasResult
                   ? `${showingPreviousResult ? 'Previous Result Job ID' : 'Job ID'}: ${result.job_id}`
                   : jobStatus?.job_id
@@ -846,7 +851,7 @@ export default function ExecutionResults({
             <div className="bg-[#0a0a0a] border border-zinc-800 rounded-md p-6 flex flex-col items-center justify-center gap-4">
               {hasResult ? (
                 <>
-                  <div className="font-serif italic text-2xl text-emerald-400 tracking-wider">
+                  <div data-testid="jones-polynomial" className="font-serif italic text-2xl text-emerald-400 tracking-wider">
                     {result.jones_polynomial}
                   </div>
                   <p className="text-xs text-zinc-500 font-mono">
