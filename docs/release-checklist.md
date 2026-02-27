@@ -2,6 +2,14 @@
 
 Last validated: 2026-02-27
 Gate status: green
+Validated commit: `cf60193`
+
+## Latest validation evidence
+
+- Host full test sequence: `npm run test:all` passed.
+- Backend suite: `python3 -m unittest discover -s backend -p "test_*.py"` passed.
+- Packaged container flow: `docker compose up --build -d` passed with route checks for health, ingestion, verification, and circuit generation.
+- Container teardown: `docker compose down` passed.
 
 ## Phase Seven Required Checks
 
