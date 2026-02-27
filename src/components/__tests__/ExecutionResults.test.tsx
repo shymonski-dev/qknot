@@ -118,7 +118,6 @@ describe('ExecutionResults', () => {
       },
     });
 
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-123');
     await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
     await waitFor(() => {
@@ -165,7 +164,6 @@ describe('ExecutionResults', () => {
       onExecutionComplete,
     });
 
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-123');
     await user.selectOptions(screen.getByRole('combobox'), 'ibm_cloud');
     await user.type(
       screen.getByPlaceholderText(/hub\/group\/project or cloud instance identifier/i),
@@ -183,11 +181,10 @@ describe('ExecutionResults', () => {
     });
 
     const [submitUrl, submitInit] = fetchMock.mock.calls[0]!;
-    expect(submitUrl).toBe('http://localhost:8000/api/jobs/submit');
+    expect(submitUrl).toBe('/api/jobs/submit');
     expect(submitInit?.method).toBe('POST');
     const submitBody = JSON.parse(String(submitInit?.body));
     expect(submitBody).toMatchObject({
-      ibm_token: 'token-123',
       backend_name: 'ibm_kyiv',
       braid_word: compiledKnot.braidWord,
       shots: 2048,
@@ -198,11 +195,10 @@ describe('ExecutionResults', () => {
     });
 
     const [pollUrl, pollInit] = fetchMock.mock.calls[1]!;
-    expect(pollUrl).toBe('http://localhost:8000/api/jobs/poll');
+    expect(pollUrl).toBe('/api/jobs/poll');
     expect(pollInit?.method).toBe('POST');
     const pollBody = JSON.parse(String(pollInit?.body));
     expect(pollBody).toEqual({
-      ibm_token: 'token-123',
       job_id: 'job-123',
       runtime_channel: 'ibm_cloud',
       runtime_instance: 'hub/group/project',
@@ -238,7 +234,6 @@ describe('ExecutionResults', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderWithHarness();
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-abc');
 
     await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
@@ -280,7 +275,6 @@ describe('ExecutionResults', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderWithHarness({ onExecutionComplete });
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-fail');
     await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
     await waitFor(() => {
@@ -307,7 +301,6 @@ describe('ExecutionResults', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderWithHarness({ onExecutionComplete });
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-422');
     await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
     await waitFor(() => {
@@ -343,7 +336,6 @@ describe('ExecutionResults', () => {
       pollIntervalMs: 1,
       maxPollAttempts: 3,
     });
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-timeout');
 
     fireEvent.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
@@ -375,7 +367,6 @@ describe('ExecutionResults', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderWithHarness();
 
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-backends');
     await user.selectOptions(screen.getByRole('combobox'), 'ibm_cloud');
     await user.type(
       screen.getByPlaceholderText(/hub\/group\/project or cloud instance identifier/i),
@@ -389,10 +380,9 @@ describe('ExecutionResults', () => {
     });
 
     const [catalogUrl, catalogInit] = fetchMock.mock.calls[0]!;
-    expect(catalogUrl).toBe('http://localhost:8000/api/backends');
+    expect(catalogUrl).toBe('/api/backends');
     const catalogBody = JSON.parse(String(catalogInit?.body));
     expect(catalogBody).toEqual({
-      ibm_token: 'token-backends',
       runtime_channel: 'ibm_cloud',
       runtime_instance: 'hub/group/project',
     });
@@ -410,7 +400,6 @@ describe('ExecutionResults', () => {
       JSON.stringify({
         job_id: 'job-resume',
         backend_name: 'ibm_kyiv',
-        backend_url: 'http://localhost:8000',
         runtime_channel: 'ibm_cloud',
         runtime_instance: 'hub/group/project',
       }),
@@ -434,7 +423,6 @@ describe('ExecutionResults', () => {
 
     expect(screen.getByText(/pending runtime job found/i)).toBeInTheDocument();
 
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-resume');
     await user.click(screen.getByRole('button', { name: /resume pending job/i }));
 
     await waitFor(() => {
@@ -442,10 +430,9 @@ describe('ExecutionResults', () => {
     });
 
     const [pollUrl, pollInit] = fetchMock.mock.calls[0]!;
-    expect(pollUrl).toBe('http://localhost:8000/api/jobs/poll');
+    expect(pollUrl).toBe('/api/jobs/poll');
     const pollBody = JSON.parse(String(pollInit?.body));
     expect(pollBody).toEqual({
-      ibm_token: 'token-resume',
       job_id: 'job-resume',
       runtime_channel: 'ibm_cloud',
       runtime_instance: 'hub/group/project',
@@ -495,7 +482,6 @@ describe('ExecutionResults', () => {
       maxPollAttempts: 20,
     });
 
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-cancel');
     await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
     await waitFor(() => {
@@ -512,7 +498,6 @@ describe('ExecutionResults', () => {
     expect(cancelCall).toBeDefined();
     const cancelBody = JSON.parse(String(cancelCall?.[1]?.body));
     expect(cancelBody).toMatchObject({
-      ibm_token: 'token-cancel',
       job_id: 'job-cancel',
     });
     expect(onExecutionComplete).not.toHaveBeenCalled();
@@ -566,7 +551,6 @@ describe('ExecutionResults', () => {
       maxPollAttempts: 5,
     });
 
-    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-retry');
     await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
 
     await waitFor(() => {

@@ -96,7 +96,7 @@ describe('CircuitGeneration', () => {
     });
 
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('http://localhost:8000/api/knot/circuit/generate');
+    expect(url).toBe('/api/knot/circuit/generate');
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({
       braid_word: verifiedKnot.braidWord,

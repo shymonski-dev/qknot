@@ -7,12 +7,12 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 - Phases one through seven are complete.
 - Release gate status is green for required checks.
 - Optional live hardware smoke run remains pending until valid IBM credentials are provided.
-- Latest validated release gate commit: `8fa50b6`.
+- Latest validated release gate commit: pending current local changes.
 
 ## What runs where
 
-- Front end: React and Vite (`http://localhost:3000`)
-- Back end: FastAPI (`http://localhost:8000`)
+- Front end development server: React and Vite (`http://localhost:3000`)
+- Standalone runtime: FastAPI serving both user interface and application programming interface (`http://localhost:8000`)
 - IBM hardware access: handled by the Python back end through `qiskit-ibm-runtime`
 
 ## Prerequisites
@@ -22,17 +22,19 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 
 Notes:
 - The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
-- A real IBM Quantum token is required for hardware runs.
+- A real IBM Quantum token must be set in backend environment variable `IBM_QUANTUM_TOKEN` for hardware routes.
 - Some IBM accounts also require a runtime instance identifier.
-- Front end environment variables are not required for local runtime.
 - Node.js 22.x is only required for development workflows and local front end rebuilds.
 - Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
+- If front end source folders change, update the `@source` lines in `src/index.css` before running production builds.
 
 ## Quick start (container, no Python setup)
 
 From the repository root:
 
 ```bash
+# Optional but required for hardware submit, poll, cancel, and backend list routes:
+# export IBM_QUANTUM_TOKEN="<your-token>"
 docker compose up
 ```
 
@@ -134,6 +136,7 @@ cd ..
 From the repository root:
 
 ```bash
+export IBM_QUANTUM_TOKEN="<your-token>"
 python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -153,18 +156,29 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+The development server proxies relative `/api/*` calls to `http://localhost:8000`.
+If your backend runs elsewhere, set:
+
+```bash
+QKNOT_BACKEND_PROXY_TARGET="http://your-backend-host:8000" npm run dev
+```
+
 ## Running against IBM hardware
 
-In the `Execution & Results` screen:
-
-1. Paste your IBM Quantum token.
-2. Keep `Python Backend URL` as `http://localhost:8000` unless your back end is elsewhere.
-3. Choose a runtime channel:
+1. Set backend credentials before starting the standalone runtime:
+   ```bash
+   export IBM_QUANTUM_TOKEN="<your-token>"
+   ```
+2. In the `Execution & Results` screen, choose a runtime channel:
    - For the first live hardware run, select `ibm_cloud` explicitly.
    - `Auto` may fail on some runtime client versions before fallback is attempted.
-4. Provide `Runtime Instance` if your account requires one.
-5. Set shots.
-6. Run the job.
+3. Provide `Runtime Instance` if your account requires one.
+4. Set shots.
+5. Run the job.
+
+Notes:
+- The execution screen no longer accepts token input.
+- The token must be provided to the backend process environment.
 
 ## Knot ingestion behavior
 
@@ -209,4 +223,5 @@ nvm use 22.19.0
 npm run lint
 npm test
 npm run test:backend
+npm run build
 ```

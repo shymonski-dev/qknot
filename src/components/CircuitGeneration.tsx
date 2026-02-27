@@ -22,7 +22,6 @@ export default function CircuitGeneration({
   setExecutionSettings,
   onGenerateCircuit,
 }: Props) {
-  const [backendUrl, setBackendUrl] = useState('http://localhost:8000');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -53,8 +52,7 @@ export default function CircuitGeneration({
     setStatusMessage(null);
 
     try {
-      const normalizedBackendUrl = backendUrl.trim().replace(/\/$/, '');
-      const response = await fetch(`${normalizedBackendUrl}/api/knot/circuit/generate`, {
+      const response = await fetch('/api/knot/circuit/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +79,7 @@ export default function CircuitGeneration({
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.name === 'TypeError') {
-          setError(`Could not reach the Python backend at ${backendUrl.trim() || 'the configured address'}.`);
+          setError('Could not reach the backend API.');
         } else {
           setError(err.message || 'Failed to generate circuit.');
         }
@@ -132,19 +130,6 @@ export default function CircuitGeneration({
                   <span>{targetBackend}</span>
                   <Cpu className="w-4 h-4 text-zinc-500" />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Python Backend URL
-                </label>
-                <input
-                  type="text"
-                  value={backendUrl}
-                  onChange={(e) => setBackendUrl(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
-                  placeholder="http://localhost:8000"
-                />
               </div>
 
               <div>
