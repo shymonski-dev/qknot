@@ -4,10 +4,10 @@ import { Database, ArrowRight, Check } from 'lucide-react';
 
 interface Props {
   activeKnot: KnotData | null;
-  setActiveKnot: (k: KnotData) => void;
+  onCompiled: (dowkerNotation: string, braidWord: string) => void;
 }
 
-export default function KnotIngestion({ activeKnot, setActiveKnot }: Props) {
+export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
   const [notation, setNotation] = useState(activeKnot?.dowkerNotation || '');
   const [isCompiling, setIsCompiling] = useState(false);
 
@@ -15,13 +15,7 @@ export default function KnotIngestion({ activeKnot, setActiveKnot }: Props) {
     setIsCompiling(true);
     setTimeout(() => {
       setIsCompiling(false);
-      if (activeKnot) {
-        setActiveKnot({
-          ...activeKnot,
-          dowkerNotation: notation,
-          braidWord: 's1 s2^-1 s1 s2^-1', // Mock compilation result
-        });
-      }
+      onCompiled(notation, 's1 s2^-1 s1 s2^-1');
     }, 1500);
   };
 

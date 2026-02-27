@@ -1,20 +1,105 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Q-Knot
 
-# Run and deploy your AI Studio app
+Front end plus Python back end for submitting a simplified knot-evaluation circuit to IBM Quantum hardware.
 
-This contains everything you need to run your app locally.
+## What runs where
 
-View your app in AI Studio: https://ai.studio/apps/8dc4f03d-0b94-413c-9a3d-c4880b5725b9
+- Front end: React and Vite (`http://localhost:3000`)
+- Back end: FastAPI (`http://localhost:8000`)
+- IBM hardware access: handled by the Python back end through `qiskit-ibm-runtime`
 
-## Run Locally
+## Prerequisites
 
-**Prerequisites:**  Node.js
+- Node.js 22.x
+- Python 3.10, 3.11, or 3.12 recommended
 
+Notes:
+- The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
+- A real IBM Quantum token is required for hardware runs.
+- Some IBM accounts also require a runtime instance identifier.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Quick start (standalone local testing)
+
+From the repository root:
+
+```bash
+npm install
+npm run dev:standalone
+```
+
+What this does:
+- Automatically creates `backend/.venv` when needed
+- Installs or refreshes backend Python dependencies when `backend/requirements.txt` changes
+- Starts the Python backend on `http://localhost:8000`
+- Starts the user interface on `http://localhost:3000`
+
+You can stop both services with `Ctrl + C`.
+
+If your machine has multiple Python versions and you want to force one:
+
+```bash
+QKNOT_PYTHON=python3.12 npm run dev:standalone
+```
+
+## Manual local setup
+
+### 1. Install front end dependencies
+
+```bash
+npm install
+```
+
+### 2. Create a Python virtual environment and install back end dependencies
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ..
+```
+
+### 3. Start the Python back end
+
+From the repository root:
+
+```bash
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
+```
+
+Health check:
+
+```bash
+curl http://localhost:8000/api/health
+```
+
+### 4. Start the front end
+
+From the repository root:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+## Running against IBM hardware
+
+In the `Execution & Results` screen:
+
+1. Paste your IBM Quantum token.
+2. Keep `Python Backend URL` as `http://localhost:8000` unless your back end is elsewhere.
+3. Choose a runtime channel:
+   - `Auto` tries platform, cloud, then legacy for compatibility with different `qiskit-ibm-runtime` client versions.
+   - You can select a specific channel if your environment requires it.
+4. Provide `Runtime Instance` if your account requires one.
+5. Set shots.
+6. Run the job.
+
+## Development checks
+
+```bash
+npm run lint
+npm test
+npm run test:backend
+```

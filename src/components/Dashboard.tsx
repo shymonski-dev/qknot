@@ -1,17 +1,57 @@
 import { Activity, CheckCircle2, CircleDashed, Clock } from 'lucide-react';
+import { KnotData } from '../types';
 
 interface Props {
   targetBackend: string;
+  activeKnot: KnotData | null;
 }
 
-export default function Dashboard({ targetBackend }: Props) {
+type TaskStatus = 'completed' | 'in-progress' | 'pending';
+
+function isAtLeastStatus(
+  knot: KnotData | null,
+  minimum: KnotData['status'],
+) {
+  if (!knot) {
+    return false;
+  }
+
+  const order: Record<KnotData['status'], number> = {
+    pending: 0,
+    verified: 1,
+    compiled: 2,
+    executed: 3,
+  };
+
+  return order[knot.status] >= order[minimum];
+}
+
+export default function Dashboard({ targetBackend, activeKnot }: Props) {
+  const hasBraidWord = Boolean(activeKnot?.braidWord?.trim());
+  const verificationComplete = isAtLeastStatus(activeKnot, 'verified');
+  const circuitComplete = isAtLeastStatus(activeKnot, 'compiled');
+  const executionComplete = isAtLeastStatus(activeKnot, 'executed');
+
+  const getStatus = (
+    isComplete: boolean,
+    canStart: boolean,
+  ): TaskStatus => {
+    if (isComplete) {
+      return 'completed';
+    }
+    if (canStart) {
+      return 'in-progress';
+    }
+    return 'pending';
+  };
+
   const tasks = [
-    { id: 1, title: 'Knot Ingestion', desc: 'Compile Dowker notation to Braid Word', status: 'completed' },
-    { id: 2, title: 'Topological Verification', desc: 'Simulate anyonic braiding in QTop', status: 'completed' },
-    { id: 3, title: 'Circuit Generation', desc: 'Map strands to IBM qubits & apply Yang-Baxter unitaries', status: 'in-progress' },
-    { id: 4, title: 'Pulse-Level Compilation', desc: 'Replace CX/Rzz with custom Cross-Resonance pulses', status: 'pending' },
-    { id: 5, title: 'Quantum Error Correction', desc: 'Encode logical qubits on heavy-hex lattice', status: 'pending' },
-    { id: 6, title: 'Execution & Mitigation', desc: `Run on ${targetBackend} & apply dynamical decoupling`, status: 'pending' },
+    { id: 1, title: 'Knot Ingestion', desc: 'Compile Dowker notation to Braid Word', status: getStatus(hasBraidWord, false) },
+    { id: 2, title: 'Topological Verification', desc: 'Simulate anyonic braiding in QTop', status: getStatus(verificationComplete, hasBraidWord) },
+    { id: 3, title: 'Circuit Generation', desc: 'Map strands to IBM qubits & apply Yang-Baxter unitaries', status: getStatus(circuitComplete, verificationComplete) },
+    { id: 4, title: 'Pulse-Level Compilation', desc: 'Replace CX/Rzz with custom Cross-Resonance pulses', status: 'pending' as TaskStatus },
+    { id: 5, title: 'Quantum Error Correction', desc: 'Encode logical qubits on heavy-hex lattice', status: 'pending' as TaskStatus },
+    { id: 6, title: 'Execution & Mitigation', desc: `Run on ${targetBackend} & apply dynamical decoupling`, status: getStatus(executionComplete, circuitComplete) },
   ];
 
   return (

@@ -1,12 +1,35 @@
+import type { Dispatch, SetStateAction } from 'react';
 import { GitMerge, Cpu, Settings2 } from 'lucide-react';
-import { KnotData } from '../types';
+import { ExecutionSettings, KnotData } from '../types';
 
 interface Props {
   activeKnot: KnotData | null;
   targetBackend: string;
+  executionSettings: ExecutionSettings;
+  setExecutionSettings: Dispatch<SetStateAction<ExecutionSettings>>;
+  onGenerateCircuit: () => void;
 }
 
-export default function CircuitGeneration({ activeKnot, targetBackend }: Props) {
+function isVerifiedOrLater(status: KnotData['status'] | undefined) {
+  return status === 'verified' || status === 'compiled' || status === 'executed';
+}
+
+export default function CircuitGeneration({
+  activeKnot,
+  targetBackend,
+  executionSettings,
+  setExecutionSettings,
+  onGenerateCircuit,
+}: Props) {
+  const canGenerate = Boolean(activeKnot?.braidWord?.trim()) && isVerifiedOrLater(activeKnot?.status);
+
+  const handleGenerateCircuit = () => {
+    if (!canGenerate) {
+      return;
+    }
+    onGenerateCircuit();
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
@@ -39,7 +62,19 @@ export default function CircuitGeneration({ activeKnot, targetBackend }: Props) 
                 <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
                   Optimization Level
                 </label>
-                <select className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50">
+                <select
+                  value={executionSettings.optimizationLevel}
+                  onChange={(e) => {
+                    const value = Number.parseInt(e.target.value, 10);
+                    if (value >= 0 && value <= 3) {
+                      setExecutionSettings((prev) => ({
+                        ...prev,
+                        optimizationLevel: value as ExecutionSettings['optimizationLevel'],
+                      }));
+                    }
+                  }}
+                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
+                >
                   <option value="3">Level 3 (Heavy Compression)</option>
                   <option value="2">Level 2</option>
                   <option value="1">Level 1</option>
@@ -51,16 +86,35 @@ export default function CircuitGeneration({ activeKnot, targetBackend }: Props) 
                 <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
                   Closure Method
                 </label>
-                <select className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50">
+                <select
+                  value={executionSettings.closureMethod}
+                  onChange={(e) =>
+                    setExecutionSettings((prev) => ({
+                      ...prev,
+                      closureMethod: e.target.value as ExecutionSettings['closureMethod'],
+                    }))
+                  }
+                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
+                >
                   <option value="trace">Trace Closure (Hadamard Test)</option>
                   <option value="plat">Plat Closure</option>
                 </select>
               </div>
               
-              <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2">
+              <button
+                onClick={handleGenerateCircuit}
+                disabled={!canGenerate}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <GitMerge className="w-4 h-4" />
                 Generate Circuit
               </button>
+
+              {!canGenerate && (
+                <p className="text-[10px] text-zinc-500 leading-tight">
+                  Verify the braid mapping first to enable circuit generation.
+                </p>
+              )}
             </div>
           </div>
         </div>

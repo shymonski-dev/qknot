@@ -27,7 +27,7 @@ export default function PulseControl({ activeKnot }: Props) {
               <div className="bg-[#0a0a0a] border border-zinc-800 rounded-md p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Target Qubit Pair</span>
-                  <span className="text-xs font-mono text-zinc-300">Q0 â†” Q1</span>
+                  <span className="text-xs font-mono text-zinc-300">Q0 to Q1</span>
                 </div>
                 <div className="space-y-2 mt-4">
                   <div className="flex justify-between text-xs font-mono">
