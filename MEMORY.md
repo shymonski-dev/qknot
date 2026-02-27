@@ -41,4 +41,4 @@
 - Phase 3: completed (backend verification route and evidence model are active with back end and front end tests).
 - Phase 4: completed (backend circuit generation route returns circuit summaries, and execution submit enforces signature consistency with generated metadata).
 - Phase 5: completed (parser accepts expanded braid tokens, verification handles multi-strand connectivity checks, and execution blocks invalid non-contiguous braid problems before submit).
-- Phase 6: completed (container and desktop standalone packaging paths are available, with bundled launch scripts and one-command startup that avoids manual Python setup steps).
+- Phase 6: completed (container path uses committed frontend distribution for faster builds, repository ships launcher files for macOS Linux and Windows, and standalone startup works through Python-only launcher flow without local Node requirement).

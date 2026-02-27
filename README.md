@@ -11,12 +11,13 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 ## Prerequisites
 
 - Option one (container): Docker Desktop
-- Option two (desktop launcher): Node.js 22.x and Python 3.10, 3.11, or 3.12
+- Option two (desktop launcher): Python 3.10, 3.11, or 3.12
 
 Notes:
 - The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
 - A real IBM Quantum token is required for hardware runs.
 - Some IBM accounts also require a runtime instance identifier.
+- Node.js 22.x is only required for development workflows and local front end rebuilds.
 - Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
 
 ## Quick start (container, no Python setup)
@@ -24,19 +25,55 @@ Notes:
 From the repository root:
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 Open `http://localhost:8000`.
 
 What this does:
-- Builds the front end inside the container image
+- Reuses committed front end distribution files from `dist`
 - Installs backend dependencies inside the container image
 - Serves both user interface and API from one container on port `8000`
 
 Stop with `Ctrl + C`, then run `docker compose down`.
 
-## Quick start (desktop standalone)
+## Quick start (desktop standalone, no Node)
+
+From the repository root:
+
+```bash
+./launchers/start-macos.command
+```
+
+Linux:
+
+```bash
+./launchers/start-linux.sh
+```
+
+Windows:
+
+```bat
+.\launchers\start-windows.bat
+```
+
+These launcher files are committed in this repository and do not require a generation step.
+
+What this does:
+- Automatically creates `backend/.venv` when needed
+- Installs or refreshes backend Python dependencies when `backend/requirements.txt` changes
+- Uses committed `dist` files for the user interface
+- Starts a single standalone runtime on `http://localhost:8000`
+
+You can stop with `Ctrl + C`.
+
+If your machine has multiple Python versions and you want to force one:
+
+```bash
+python3.12 scripts/start-standalone.py
+```
+
+## Node-based standalone command (development)
 
 From the repository root:
 
@@ -45,27 +82,7 @@ npm install
 npm run start:standalone
 ```
 
-What this does:
-- Automatically creates `backend/.venv` when needed
-- Installs or refreshes backend Python dependencies when `backend/requirements.txt` changes
-- Uses existing `dist` output, or builds it if missing
-- Starts a single standalone runtime on `http://localhost:8000`
-
-You can stop with `Ctrl + C`.
-
-If your machine has multiple Python versions and you want to force one:
-
-```bash
-QKNOT_PYTHON=python3.12 npm run start:standalone
-```
-
-If you need to force a fresh front end build before start:
-
-```bash
-QKNOT_FORCE_FRONTEND_BUILD=1 npm run start:standalone
-```
-
-## Desktop launcher packaging
+## Desktop launcher packaging (optional bundle output)
 
 From the repository root:
 
@@ -78,6 +95,7 @@ This creates platform launcher files in `release/desktop`:
 - `start-macos.command`
 - `start-linux.sh`
 - `start-windows.bat`
+- `README.txt`
 
 If you want the packaging step to rebuild `dist` first:
 
