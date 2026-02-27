@@ -183,6 +183,12 @@ In the `Execution & Results` screen:
 - Circuit generation scales qubit width with the highest generator index in the braid word.
 - Execution blocks invalid braid problems before submit, including too few tokens, one-generator braids, and non-contiguous generator ranges.
 
+## Release gate artifacts
+
+- Release checklist: `docs/release-checklist.md`
+- Release runbook: `docs/release-runbook.md`
+- Optional live hardware smoke workflow script: `scripts/run-live-hardware-smoke.py`
+
 ## Development checks
 
 Use Node.js `22.19.0` (or any `22.x`) before running front end checks:
