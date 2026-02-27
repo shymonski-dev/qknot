@@ -63,14 +63,15 @@ export interface KnotIngestionResponse {
 
 export interface KnotVerificationEvidence {
   token_count: number;
-  generator_counts: {
-    s1: number;
-    s2: number;
-  };
+  generator_counts: Record<string, number>;
   inverse_count: number;
   net_writhe: number;
   generator_switches: number;
   alternation_ratio: number;
+  unique_generator_count: number;
+  max_generator_index: number;
+  strand_count: number;
+  missing_generators: string[];
   strand_connectivity: string;
 }
 

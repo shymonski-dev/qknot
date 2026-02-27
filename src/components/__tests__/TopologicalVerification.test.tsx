@@ -37,6 +37,10 @@ describe('TopologicalVerification', () => {
         net_writhe: 0,
         generator_switches: 3,
         alternation_ratio: 1,
+        unique_generator_count: 2,
+        max_generator_index: 2,
+        strand_count: 3,
+        missing_generators: [],
         strand_connectivity: 'connected-3-strand',
       },
     };
@@ -80,6 +84,10 @@ describe('TopologicalVerification', () => {
         net_writhe: 3,
         generator_switches: 0,
         alternation_ratio: 0,
+        unique_generator_count: 1,
+        max_generator_index: 2,
+        strand_count: 3,
+        missing_generators: [],
         strand_connectivity: 'partial-3-strand',
       },
     };
@@ -107,12 +115,12 @@ describe('TopologicalVerification', () => {
     const onVerified = vi.fn();
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ detail: "Unsupported braid token 's3'." }, 422));
+      .mockResolvedValueOnce(jsonResponse({ detail: "Unsupported braid token 'x3'." }, 422));
     vi.stubGlobal('fetch', fetchMock);
 
     render(
       <TopologicalVerification
-        activeKnot={{ ...pendingKnot, braidWord: 's1 s3' }}
+        activeKnot={{ ...pendingKnot, braidWord: 's1 x3' }}
         onVerified={onVerified}
       />,
     );
@@ -120,7 +128,7 @@ describe('TopologicalVerification', () => {
     await user.click(screen.getByRole('button', { name: /verify topological mapping/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/input validation failed: unsupported braid token 's3'\./i)).toBeInTheDocument();
+      expect(screen.getByText(/input validation failed: unsupported braid token 'x3'\./i)).toBeInTheDocument();
     });
     expect(onVerified).not.toHaveBeenCalled();
   });

@@ -17,6 +17,12 @@ export default function TopologicalVerification({ activeKnot, onVerified }: Prop
   const [error, setError] = useState<string | null>(null);
   const [verificationResult, setVerificationResult] = useState<KnotVerificationResponse | null>(null);
   const isVerified = isVerifiedStatus(activeKnot?.status) || verificationResult?.is_verified === true;
+  const generatorCountSummary = verificationResult
+    ? Object.entries(verificationResult.evidence.generator_counts)
+      .sort(([a], [b]) => Number(a.replace(/^s/, '')) - Number(b.replace(/^s/, '')))
+      .map(([generator, count]) => `${generator}:${count}`)
+      .join('  ')
+    : '';
 
   const readErrorDetail = async (response: Response, fallbackMessage: string) => {
     let detail = fallbackMessage;
@@ -208,9 +214,9 @@ export default function TopologicalVerification({ activeKnot, onVerified }: Prop
                     <div className="text-zinc-200 font-mono mt-1">{verificationResult.evidence.generator_switches}</div>
                   </div>
                   <div className="bg-zinc-900 border border-zinc-800 rounded-md p-3">
-                    <div className="text-zinc-500 text-xs uppercase tracking-wider">s1 / s2 Count</div>
+                    <div className="text-zinc-500 text-xs uppercase tracking-wider">Generator Counts</div>
                     <div className="text-zinc-200 font-mono mt-1">
-                      {verificationResult.evidence.generator_counts.s1} / {verificationResult.evidence.generator_counts.s2}
+                      {generatorCountSummary}
                     </div>
                   </div>
                   <div className="bg-zinc-900 border border-zinc-800 rounded-md p-3">
