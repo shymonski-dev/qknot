@@ -103,6 +103,18 @@ In the `Execution & Results` screen:
 - Dowker notation is validated server side before braid generation.
 - Validation errors are shown directly in the user interface.
 
+## Topological verification behavior
+
+- The `Topological Verification` screen now calls `POST /api/knot/verify` on the Python backend.
+- Verification returns computed evidence: token count, generator usage, inverse count, net writhe, alternation, and strand connectivity.
+- The pipeline only marks verification complete when `is_verified` is true.
+
+## Circuit generation behavior
+
+- The `Circuit Generation` screen now calls `POST /api/knot/circuit/generate` on the Python backend.
+- Generation returns backend computed circuit metadata: depth, width, operation counts, and a deterministic signature.
+- The execution submit request includes closure method and compares the generated signature with the submitted job circuit signature before polling.
+
 ## Development checks
 
 Use Node.js `22.19.0` (or any `22.x`) before running front end checks:

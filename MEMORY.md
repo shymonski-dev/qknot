@@ -38,3 +38,5 @@
 ## Status
 - Phase 1: completed (unsupported Node versions now fail fast and global front end test cleanup is centralized).
 - Phase 2: completed (real knot ingestion route, validation, user interface wiring, and user interface tests are in working tree).
+- Phase 3: completed (backend verification route and evidence model are active with back end and front end tests).
+- Phase 4: completed (backend circuit generation route returns circuit summaries, and execution submit enforces signature consistency with generated metadata).

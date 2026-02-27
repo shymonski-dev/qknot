@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from typing import TYPE_CHECKING
 
@@ -10,6 +12,7 @@ if TYPE_CHECKING:
 BRAID_TOKEN_RE = re.compile(r"^s([12])(\^-1)?$")
 AUTO_RUNTIME_CHANNELS = ("ibm_quantum_platform", "ibm_cloud", "ibm_quantum")
 DEFAULT_ROOT_OF_UNITY = 5
+DEFAULT_CLOSURE_METHOD = "trace"
 
 # Catalog entries provide deterministic outputs for known notations.
 _DOWKER_BRAID_CATALOG = {
@@ -123,6 +126,226 @@ def compile_dowker_notation(dowker_notation: str):
         "braid_word": braid_word,
         "root_of_unity": root_of_unity,
         "is_catalog_match": is_catalog_match,
+    }
+
+
+def verify_topological_mapping(braid_word: str):
+    parsed_braid = parse_braid_word(braid_word)
+
+    token_count = len(parsed_braid)
+    generator_counts = {"s1": 0, "s2": 0}
+    inverse_count = 0
+    net_writhe = 0
+    generator_switches = 0
+
+    previous_generator = None
+    for generator, is_inverse in parsed_braid:
+        token = f"s{generator}"
+        generator_counts[token] += 1
+        if is_inverse:
+            inverse_count += 1
+            net_writhe -= 1
+        else:
+            net_writhe += 1
+
+        if previous_generator is not None and previous_generator != generator:
+            generator_switches += 1
+        previous_generator = generator
+
+    uses_all_supported_generators = generator_counts["s1"] > 0 and generator_counts["s2"] > 0
+    strand_connectivity = "connected-3-strand" if uses_all_supported_generators else "partial-3-strand"
+    alternation_ratio = generator_switches / max(token_count - 1, 1)
+
+    evidence = {
+        "token_count": token_count,
+        "generator_counts": generator_counts,
+        "inverse_count": inverse_count,
+        "net_writhe": net_writhe,
+        "generator_switches": generator_switches,
+        "alternation_ratio": round(alternation_ratio, 3),
+        "strand_connectivity": strand_connectivity,
+    }
+
+    if token_count < 3:
+        return {
+            "is_verified": False,
+            "status": "failed",
+            "detail": "Verification failed: braid word must contain at least three generators.",
+            "evidence": evidence,
+        }
+
+    if not uses_all_supported_generators:
+        return {
+            "is_verified": False,
+            "status": "failed",
+            "detail": (
+                "Verification failed: braid word must include both s1 and s2 "
+                "to demonstrate three-strand topological connectivity."
+            ),
+            "evidence": evidence,
+        }
+
+    return {
+        "is_verified": True,
+        "status": "verified",
+        "detail": "Topological verification passed with connected three-strand braid evidence.",
+        "evidence": evidence,
+    }
+
+
+def _validate_closure_method(closure_method: str):
+    if closure_method not in {"trace", "plat"}:
+        raise ValueError("Closure method must be either 'trace' or 'plat'.")
+
+
+def build_knot_circuit(
+    braid_word: str,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+):
+    import numpy as np
+    from qiskit import QuantumCircuit
+
+    _validate_closure_method(closure_method)
+    parsed_braid = parse_braid_word(braid_word)
+
+    qc = QuantumCircuit(3, 1)
+    theta = 2 * np.pi / root_of_unity
+
+    if closure_method == "trace":
+        qc.h(0)
+    else:
+        qc.x(0)
+        qc.h(0)
+
+    for generator, is_inverse in parsed_braid:
+        apply_braid_generator(
+            qc,
+            ancilla=0,
+            data_a=1,
+            data_b=2,
+            generator=generator,
+            is_inverse=is_inverse,
+            theta=theta,
+        )
+
+    if closure_method == "trace":
+        qc.h(0)
+    else:
+        qc.sdg(0)
+        qc.h(0)
+
+    qc.measure(0, 0)
+    return qc
+
+
+def _serialize_operation_counts(operation_counts):
+    return {
+        str(operation): int(count)
+        for operation, count in sorted(
+            operation_counts.items(),
+            key=lambda item: str(item[0]),
+        )
+    }
+
+
+def _count_two_qubit_gates(operation_counts: dict[str, int]):
+    two_qubit_gate_names = {
+        "cx",
+        "cz",
+        "cp",
+        "swap",
+        "ecr",
+        "rzz",
+        "rxx",
+        "ryy",
+        "iswap",
+        "crx",
+        "cry",
+        "crz",
+    }
+    return sum(
+        count
+        for gate_name, count in operation_counts.items()
+        if gate_name in two_qubit_gate_names
+    )
+
+
+def summarize_transpiled_circuit(
+    transpiled_circuit,
+    *,
+    braid_word: str,
+    optimization_level: int,
+    closure_method: str,
+):
+    operation_counts = _serialize_operation_counts(transpiled_circuit.count_ops())
+    depth = int(transpiled_circuit.depth() or 0)
+    size = int(transpiled_circuit.size() or 0)
+    width = int(transpiled_circuit.width() or 0)
+    num_qubits = int(transpiled_circuit.num_qubits)
+    num_clbits = int(transpiled_circuit.num_clbits)
+    two_qubit_gate_count = _count_two_qubit_gates(operation_counts)
+    measurement_count = int(operation_counts.get("measure", 0))
+
+    signature_payload = {
+        "braid_word": braid_word,
+        "closure_method": closure_method,
+        "optimization_level": optimization_level,
+        "depth": depth,
+        "size": size,
+        "width": width,
+        "num_qubits": num_qubits,
+        "num_clbits": num_clbits,
+        "two_qubit_gate_count": two_qubit_gate_count,
+        "measurement_count": measurement_count,
+        "operation_counts": operation_counts,
+    }
+    signature_source = json.dumps(signature_payload, sort_keys=True)
+    signature = hashlib.sha256(signature_source.encode("utf-8")).hexdigest()[:16]
+
+    return {
+        "depth": depth,
+        "size": size,
+        "width": width,
+        "num_qubits": num_qubits,
+        "num_clbits": num_clbits,
+        "two_qubit_gate_count": two_qubit_gate_count,
+        "measurement_count": measurement_count,
+        "operation_counts": operation_counts,
+        "signature": signature,
+    }
+
+
+def generate_knot_circuit_artifact(
+    braid_word: str,
+    optimization_level: int = 3,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
+    target_backend: str | None = None,
+):
+    if optimization_level < 0 or optimization_level > 3:
+        raise ValueError("Optimization level must be between 0 and 3.")
+    _validate_closure_method(closure_method)
+
+    from qiskit import transpile
+
+    logical_circuit = build_knot_circuit(
+        braid_word=braid_word,
+        closure_method=closure_method,
+    )
+    transpiled_circuit = transpile(logical_circuit, optimization_level=optimization_level)
+    circuit_summary = summarize_transpiled_circuit(
+        transpiled_circuit,
+        braid_word=braid_word,
+        optimization_level=optimization_level,
+        closure_method=closure_method,
+    )
+
+    return {
+        "target_backend": target_backend or "unspecified",
+        "optimization_level": optimization_level,
+        "closure_method": closure_method,
+        "braid_word": braid_word,
+        "circuit_summary": circuit_summary,
     }
 
 
@@ -446,14 +669,14 @@ def _build_and_submit_knot_job(
     braid_word: str,
     shots: int,
     optimization_level: int = 3,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
     runtime_channel: str | None = None,
     runtime_instance: str | None = None,
 ):
-    import numpy as np
-    from qiskit import QuantumCircuit, transpile
+    from qiskit import transpile
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
 
-    parsed_braid = parse_braid_word(braid_word)
+    _validate_closure_method(closure_method)
 
     service, channel_used = create_runtime_service(
         QiskitRuntimeService=QiskitRuntimeService,
@@ -463,31 +686,21 @@ def _build_and_submit_knot_job(
     )
 
     backend = select_backend(service, backend_name)
-
-    # Build the simplified Hadamard-test circuit.
-    qc = QuantumCircuit(3, 1)
-    qc.h(0)
-    theta = 2 * np.pi / 5
-
-    for generator, is_inverse in parsed_braid:
-        apply_braid_generator(
-            qc,
-            ancilla=0,
-            data_a=1,
-            data_b=2,
-            generator=generator,
-            is_inverse=is_inverse,
-            theta=theta,
-        )
-
-    qc.h(0)
-    qc.measure(0, 0)
-
-    transpiled_qc = transpile(qc, backend=backend, optimization_level=optimization_level)
+    logical_circuit = build_knot_circuit(
+        braid_word=braid_word,
+        closure_method=closure_method,
+    )
+    transpiled_qc = transpile(logical_circuit, backend=backend, optimization_level=optimization_level)
+    circuit_summary = summarize_transpiled_circuit(
+        transpiled_qc,
+        braid_word=braid_word,
+        optimization_level=optimization_level,
+        closure_method=closure_method,
+    )
     sampler = create_sampler_for_backend(Sampler, backend)
     job = sampler.run([transpiled_qc], shots=shots)
 
-    return job, backend, channel_used
+    return job, backend, channel_used, circuit_summary
 
 
 def apply_braid_generator(
@@ -528,15 +741,17 @@ def submit_knot_experiment(
     braid_word: str,
     shots: int,
     optimization_level: int = 3,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
     runtime_channel: str | None = None,
     runtime_instance: str | None = None,
 ):
-    job, backend, channel_used = _build_and_submit_knot_job(
+    job, backend, channel_used, circuit_summary = _build_and_submit_knot_job(
         token=token,
         backend_name=backend_name,
         braid_word=braid_word,
         shots=shots,
         optimization_level=optimization_level,
+        closure_method=closure_method,
         runtime_channel=runtime_channel,
         runtime_instance=runtime_instance,
     )
@@ -550,6 +765,8 @@ def submit_knot_experiment(
         "backend": resolve_backend_name(backend),
         "runtime_channel_used": channel_used,
         "runtime_instance_used": runtime_instance,
+        "closure_method": closure_method,
+        "circuit_summary": circuit_summary,
         "status": status,
     }
 
@@ -666,18 +883,20 @@ def run_knot_experiment(
     braid_word: str,
     shots: int,
     optimization_level: int = 3,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
     runtime_channel: str | None = None,
     runtime_instance: str | None = None,
 ):
     """
     Submits a knot evaluation circuit to IBM Quantum hardware using Qiskit Runtime.
     """
-    job, backend, channel_used = _build_and_submit_knot_job(
+    job, backend, channel_used, _ = _build_and_submit_knot_job(
         token=token,
         backend_name=backend_name,
         braid_word=braid_word,
         shots=shots,
         optimization_level=optimization_level,
+        closure_method=closure_method,
         runtime_channel=runtime_channel,
         runtime_instance=runtime_instance,
     )

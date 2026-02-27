@@ -9,19 +9,23 @@ try:
     from .quantum_engine import (
         cancel_knot_experiment,
         compile_dowker_notation,
+        generate_knot_circuit_artifact,
         list_accessible_backends,
         poll_knot_experiment_result,
         run_knot_experiment,
         submit_knot_experiment,
+        verify_topological_mapping,
     )
 except ImportError:
     from quantum_engine import (
         cancel_knot_experiment,
         compile_dowker_notation,
+        generate_knot_circuit_artifact,
         list_accessible_backends,
         poll_knot_experiment_result,
         run_knot_experiment,
         submit_knot_experiment,
+        verify_topological_mapping,
     )
 
 app = FastAPI(title="Q-Knot IBM Quantum Backend")
@@ -41,6 +45,7 @@ class ExperimentRequest(BaseModel):
     braid_word: str = Field(min_length=1)
     shots: int = Field(ge=1, le=100_000)
     optimization_level: int = Field(default=3, ge=0, le=3)
+    closure_method: Literal["trace", "plat"] = "trace"
     runtime_channel: Literal["ibm_quantum_platform", "ibm_cloud", "ibm_quantum"] | None = None
     runtime_instance: str | None = None
 
@@ -123,6 +128,44 @@ class KnotIngestionRequest(BaseModel):
             raise ValueError("Field cannot be blank.")
         return normalized
 
+
+class KnotVerificationRequest(BaseModel):
+    braid_word: str = Field(min_length=1)
+
+    @field_validator("braid_word")
+    @classmethod
+    def strip_and_validate_non_empty(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field cannot be blank.")
+        return normalized
+
+
+class CircuitGenerationRequest(BaseModel):
+    braid_word: str = Field(min_length=1)
+    optimization_level: int = Field(default=3, ge=0, le=3)
+    closure_method: Literal["trace", "plat"] = "trace"
+    target_backend: str | None = None
+
+    @field_validator("braid_word")
+    @classmethod
+    def strip_and_validate_non_empty(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field cannot be blank.")
+        return normalized
+
+    @field_validator("target_backend", mode="before")
+    @classmethod
+    def normalize_optional_target_backend(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("target_backend must be a string when provided.")
+        normalized = value.strip()
+        return normalized or None
+
+
 @app.post("/api/run-experiment")
 async def run_experiment(req: ExperimentRequest):
     try:
@@ -133,6 +176,7 @@ async def run_experiment(req: ExperimentRequest):
             req.braid_word,
             req.shots,
             req.optimization_level,
+            req.closure_method,
             req.runtime_channel,
             req.runtime_instance,
         )
@@ -153,6 +197,7 @@ async def submit_experiment_job(req: ExperimentRequest):
             req.braid_word,
             req.shots,
             req.optimization_level,
+            req.closure_method,
             req.runtime_channel,
             req.runtime_instance,
         )
@@ -219,6 +264,37 @@ async def ingest_knot(req: KnotIngestionRequest):
         result = await run_in_threadpool(
             compile_dowker_notation,
             req.dowker_notation,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/knot/verify")
+async def verify_knot(req: KnotVerificationRequest):
+    try:
+        result = await run_in_threadpool(
+            verify_topological_mapping,
+            req.braid_word,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/knot/circuit/generate")
+async def generate_knot_circuit(req: CircuitGenerationRequest):
+    try:
+        result = await run_in_threadpool(
+            generate_knot_circuit_artifact,
+            req.braid_word,
+            req.optimization_level,
+            req.closure_method,
+            req.target_backend,
         )
         return result
     except ValueError as e:

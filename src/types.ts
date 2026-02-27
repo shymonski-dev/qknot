@@ -32,6 +32,8 @@ export interface ExperimentJobStatus {
   backend?: string;
   runtime_channel_used?: string | null;
   runtime_instance_used?: string | null;
+  closure_method?: ClosureMethod;
+  circuit_summary?: KnotCircuitSummary;
   status: string;
   detail?: string;
 }
@@ -59,6 +61,46 @@ export interface KnotIngestionResponse {
   is_catalog_match: boolean;
 }
 
+export interface KnotVerificationEvidence {
+  token_count: number;
+  generator_counts: {
+    s1: number;
+    s2: number;
+  };
+  inverse_count: number;
+  net_writhe: number;
+  generator_switches: number;
+  alternation_ratio: number;
+  strand_connectivity: string;
+}
+
+export interface KnotVerificationResponse {
+  is_verified: boolean;
+  status: 'verified' | 'failed';
+  detail: string;
+  evidence: KnotVerificationEvidence;
+}
+
+export interface KnotCircuitSummary {
+  depth: number;
+  size: number;
+  width: number;
+  num_qubits: number;
+  num_clbits: number;
+  two_qubit_gate_count: number;
+  measurement_count: number;
+  operation_counts: Record<string, number>;
+  signature: string;
+}
+
+export interface KnotCircuitGenerationResponse {
+  target_backend: string;
+  optimization_level: number;
+  closure_method: ClosureMethod;
+  braid_word: string;
+  circuit_summary: KnotCircuitSummary;
+}
+
 export interface KnotData {
   id: string;
   name: string;
@@ -67,4 +109,5 @@ export interface KnotData {
   rootOfUnity: number;
   status: KnotStatus;
   jonesPolynomial?: string;
+  circuitSummary?: KnotCircuitSummary;
 }

@@ -340,6 +340,7 @@ export default function ExecutionResults({
           braid_word: activeKnot?.braidWord || 's1',
           shots: executionSettings.shots,
           optimization_level: executionSettings.optimizationLevel,
+          closure_method: executionSettings.closureMethod,
           ...runtimePayload,
         }),
       });
@@ -353,6 +354,15 @@ export default function ExecutionResults({
       }
 
       const submittedJob = (await submitResponse.json()) as ExperimentJobStatus;
+
+      const generatedSignature = activeKnot?.circuitSummary?.signature;
+      const submittedSignature = submittedJob.circuit_summary?.signature;
+      if (generatedSignature && submittedSignature && generatedSignature !== submittedSignature) {
+        throw new Error(
+          `Generated circuit signature ${generatedSignature} does not match submitted signature ${submittedSignature}.`,
+        );
+      }
+
       setJobStatus(submittedJob);
 
       if (!submittedJob.job_id) {

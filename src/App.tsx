@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, Cpu, Database, GitMerge, Layers, Play, Settings, Zap, ShieldAlert } from 'lucide-react';
-import { PipelineStep, KnotData, ExecutionSettings, ExperimentResult, KnotIngestionResponse } from './types';
+import { PipelineStep, KnotData, ExecutionSettings, ExperimentResult, KnotCircuitGenerationResponse, KnotIngestionResponse } from './types';
 import { cn } from './lib/utils';
 import Dashboard from './components/Dashboard';
 import KnotIngestion from './components/KnotIngestion';
@@ -41,6 +41,7 @@ export default function App() {
         rootOfUnity: compiledKnot.root_of_unity,
         status: 'pending',
         jonesPolynomial: undefined,
+        circuitSummary: undefined,
       };
     });
   };
@@ -61,7 +62,7 @@ export default function App() {
     });
   };
 
-  const handleCircuitGenerated = () => {
+  const handleCircuitGenerated = (generatedCircuit: KnotCircuitGenerationResponse) => {
     setActiveKnot((prev) => {
       if (!prev) {
         return prev;
@@ -71,6 +72,7 @@ export default function App() {
         ...prev,
         status: 'compiled',
         jonesPolynomial: undefined,
+        circuitSummary: generatedCircuit.circuit_summary,
       };
     });
   };
