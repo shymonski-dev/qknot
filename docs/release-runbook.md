@@ -29,6 +29,10 @@ Expected result:
 - backend tests pass
 - production build completes
 
+Style note:
+- The front end imports `src/styles.prebuilt.css` in local development mode.
+- After style changes, refresh this file from the latest build output.
+
 ## 3. Packaged Container Gate
 
 1. Build and start packaged runtime:

@@ -27,6 +27,7 @@ Notes:
 - Node.js 22.x is only required for development workflows and local front end rebuilds.
 - Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
 - If front end source folders change, update the `@source` lines in `src/index.css` before running production builds.
+- The front end currently imports `src/styles.prebuilt.css` to avoid local style transform stalls during development server startup.
 
 ## Quick start (container, no Python setup)
 
@@ -161,6 +162,13 @@ If your backend runs elsewhere, set:
 
 ```bash
 QKNOT_BACKEND_PROXY_TARGET="http://your-backend-host:8000" npm run dev
+```
+
+If you change user interface styles and want to refresh the prebuilt style file:
+
+```bash
+npm run build
+cp dist/assets/index-*.css src/styles.prebuilt.css
 ```
 
 ## Running against IBM hardware
