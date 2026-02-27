@@ -1,3 +1,4 @@
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -23,7 +24,6 @@ def _valid_request(**overrides):
     if backend_main is None:
         raise RuntimeError("backend.main could not be imported for tests.")
     payload = {
-        "ibm_token": " token-value ",
         "backend_name": " ibm_kyiv ",
         "braid_word": " s1 s2^-1 ",
         "shots": 1024,
@@ -40,7 +40,6 @@ def _valid_poll_request(**overrides):
     if backend_main is None:
         raise RuntimeError("backend.main could not be imported for tests.")
     payload = {
-        "ibm_token": " token-value ",
         "job_id": " job-123 ",
         "runtime_channel": "ibm_quantum_platform",
         "runtime_instance": "  hub/group/project  ",
@@ -53,7 +52,6 @@ def _valid_runtime_service_request(**overrides):
     if backend_main is None:
         raise RuntimeError("backend.main could not be imported for tests.")
     payload = {
-        "ibm_token": " token-value ",
         "runtime_channel": "ibm_quantum_platform",
         "runtime_instance": "  hub/group/project  ",
     }
@@ -98,7 +96,6 @@ def _valid_circuit_generation_request(**overrides):
 class ExperimentRequestModelTests(unittest.TestCase):
     def test_normalizes_string_fields(self):
         req = _valid_request()
-        self.assertEqual(req.ibm_token, "token-value")
         self.assertEqual(req.backend_name, "ibm_kyiv")
         self.assertEqual(req.braid_word, "s1 s2^-1")
         self.assertEqual(req.runtime_instance, "hub/group/project")
@@ -124,7 +121,6 @@ class ExperimentRequestModelTests(unittest.TestCase):
 class PollJobRequestModelTests(unittest.TestCase):
     def test_normalizes_string_fields(self):
         req = _valid_poll_request()
-        self.assertEqual(req.ibm_token, "token-value")
         self.assertEqual(req.job_id, "job-123")
         self.assertEqual(req.runtime_instance, "hub/group/project")
 
@@ -137,7 +133,6 @@ class PollJobRequestModelTests(unittest.TestCase):
 class RuntimeServiceRequestModelTests(unittest.TestCase):
     def test_normalizes_string_fields(self):
         req = _valid_runtime_service_request()
-        self.assertEqual(req.ibm_token, "token-value")
         self.assertEqual(req.runtime_instance, "hub/group/project")
 
     def test_blank_runtime_instance_becomes_none(self):
@@ -203,7 +198,10 @@ class ApiHandlerTests(unittest.IsolatedAsyncioTestCase):
 
         run_in_threadpool_mock = AsyncMock(return_value=expected)
 
-        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+        with (
+            patch.dict(os.environ, {"IBM_QUANTUM_TOKEN": "token-value"}, clear=False),
+            patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock),
+        ):
             result = await backend_main.run_experiment(req)
 
         self.assertEqual(result, expected)
@@ -228,7 +226,10 @@ class ApiHandlerTests(unittest.IsolatedAsyncioTestCase):
         req = _valid_request()
         run_in_threadpool_mock = AsyncMock(side_effect=ValueError("Unsupported braid token 's9'."))
 
-        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+        with (
+            patch.dict(os.environ, {"IBM_QUANTUM_TOKEN": "token-value"}, clear=False),
+            patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock),
+        ):
             with self.assertRaises(HTTPException) as ctx:
                 await backend_main.run_experiment(req)
 
@@ -239,7 +240,10 @@ class ApiHandlerTests(unittest.IsolatedAsyncioTestCase):
         req = _valid_request()
         run_in_threadpool_mock = AsyncMock(side_effect=RuntimeError("hardware unavailable"))
 
-        with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
+        with (
+            patch.dict(os.environ, {"IBM_QUANTUM_TOKEN": "token-value"}, clear=False),
+            patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock),
+        ):
             with self.assertRaises(HTTPException) as ctx:
                 await backend_main.run_experiment(req)
 
@@ -251,7 +255,37 @@ class ApiHandlerTests(unittest.IsolatedAsyncioTestCase):
 
 
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
+class BackendCredentialResolutionTests(unittest.TestCase):
+    def test_prefers_primary_backend_token_variable(self):
+        with patch.dict(
+            os.environ,
+            {
+                "IBM_QUANTUM_TOKEN": "primary-token",
+                "QKNOT_IBM_TOKEN": "fallback-token",
+            },
+            clear=True,
+        ):
+            self.assertEqual(backend_main._resolve_ibm_token(), "primary-token")
+
+    def test_uses_legacy_token_variable_as_fallback(self):
+        with patch.dict(os.environ, {"QKNOT_IBM_TOKEN": "fallback-token"}, clear=True):
+            self.assertEqual(backend_main._resolve_ibm_token(), "fallback-token")
+
+    def test_raises_when_no_backend_token_exists(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(RuntimeError):
+                backend_main._resolve_ibm_token()
+
+
+@unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
 class SubmitPollRouteSequenceTests(unittest.TestCase):
+    def setUp(self):
+        self._env_patch = patch.dict(os.environ, {"IBM_QUANTUM_TOKEN": "token-value"}, clear=False)
+        self._env_patch.start()
+
+    def tearDown(self):
+        self._env_patch.stop()
+
     def test_submit_and_poll_routes_use_expected_threadpool_targets(self):
         client = TestClient(backend_main.app)
 
@@ -279,7 +313,6 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
             submit_response = client.post(
                 "/api/jobs/submit",
                 json={
-                    "ibm_token": " token-value ",
                     "backend_name": " ibm_kyiv ",
                     "braid_word": " s1 s2^-1 ",
                     "shots": 1024,
@@ -295,7 +328,6 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
             poll_response = client.post(
                 "/api/jobs/poll",
                 json={
-                    "ibm_token": " token-value ",
                     "job_id": " job-123 ",
                     "runtime_channel": "ibm_quantum_platform",
                     "runtime_instance": "  hub/group/project  ",
@@ -365,7 +397,6 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
             cancel_response = client.post(
                 "/api/jobs/cancel",
                 json={
-                    "ibm_token": " token-value ",
                     "job_id": " job-123 ",
                     "runtime_channel": "ibm_quantum_platform",
                     "runtime_instance": "  hub/group/project  ",
@@ -377,7 +408,6 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
             backends_response = client.post(
                 "/api/backends",
                 json={
-                    "ibm_token": " token-value ",
                     "runtime_channel": "ibm_quantum_platform",
                     "runtime_instance": "  hub/group/project  ",
                 },
@@ -562,6 +592,28 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json(), {"detail": "Closure method must be either 'trace' or 'plat'."})
+
+    def test_submit_route_returns_server_error_when_token_env_is_missing(self):
+        client = TestClient(backend_main.app)
+        with patch.dict(os.environ, {}, clear=True):
+            response = client.post(
+                "/api/jobs/submit",
+                json={
+                    "backend_name": " ibm_kyiv ",
+                    "braid_word": " s1 s2^-1 ",
+                    "shots": 1024,
+                    "optimization_level": 2,
+                    "closure_method": "trace",
+                },
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.json(),
+            {
+                "detail": "Backend is missing IBM credentials. Set IBM_QUANTUM_TOKEN before calling runtime routes.",
+            },
+        )
 
 
 if __name__ == "__main__":

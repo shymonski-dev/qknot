@@ -57,7 +57,7 @@ describe('TopologicalVerification', () => {
     });
 
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('http://localhost:8000/api/knot/verify');
+    expect(url).toBe('/api/knot/verify');
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({
       braid_word: pendingKnot.braidWord,

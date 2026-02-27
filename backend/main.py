@@ -46,7 +46,6 @@ app.add_middleware(
 )
 
 class ExperimentRequest(BaseModel):
-    ibm_token: str = Field(min_length=1)
     backend_name: str = Field(min_length=1)
     braid_word: str = Field(min_length=1)
     shots: int = Field(ge=1, le=100_000)
@@ -55,7 +54,7 @@ class ExperimentRequest(BaseModel):
     runtime_channel: Literal["ibm_quantum_platform", "ibm_cloud", "ibm_quantum"] | None = None
     runtime_instance: str | None = None
 
-    @field_validator("ibm_token", "backend_name", "braid_word")
+    @field_validator("backend_name", "braid_word")
     @classmethod
     def strip_and_validate_non_empty(cls, value: str) -> str:
         normalized = value.strip()
@@ -75,12 +74,11 @@ class ExperimentRequest(BaseModel):
 
 
 class PollJobRequest(BaseModel):
-    ibm_token: str = Field(min_length=1)
     job_id: str = Field(min_length=1)
     runtime_channel: Literal["ibm_quantum_platform", "ibm_cloud", "ibm_quantum"] | None = None
     runtime_instance: str | None = None
 
-    @field_validator("ibm_token", "job_id")
+    @field_validator("job_id")
     @classmethod
     def strip_and_validate_non_empty(cls, value: str) -> str:
         normalized = value.strip()
@@ -100,17 +98,8 @@ class PollJobRequest(BaseModel):
 
 
 class RuntimeServiceRequest(BaseModel):
-    ibm_token: str = Field(min_length=1)
     runtime_channel: Literal["ibm_quantum_platform", "ibm_cloud", "ibm_quantum"] | None = None
     runtime_instance: str | None = None
-
-    @field_validator("ibm_token")
-    @classmethod
-    def strip_and_validate_non_empty(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("Field cannot be blank.")
-        return normalized
 
     @field_validator("runtime_instance", mode="before")
     @classmethod
@@ -172,12 +161,21 @@ class CircuitGenerationRequest(BaseModel):
         return normalized or None
 
 
+def _resolve_ibm_token() -> str:
+    for variable_name in ("IBM_QUANTUM_TOKEN", "QKNOT_IBM_TOKEN"):
+        value = os.getenv(variable_name, "").strip()
+        if value:
+            return value
+    raise RuntimeError("Backend is missing IBM credentials. Set IBM_QUANTUM_TOKEN before calling runtime routes.")
+
+
 @app.post("/api/run-experiment")
 async def run_experiment(req: ExperimentRequest):
     try:
+        ibm_token = _resolve_ibm_token()
         result = await run_in_threadpool(
             run_knot_experiment,
-            req.ibm_token,
+            ibm_token,
             req.backend_name,
             req.braid_word,
             req.shots,
@@ -196,9 +194,10 @@ async def run_experiment(req: ExperimentRequest):
 @app.post("/api/jobs/submit")
 async def submit_experiment_job(req: ExperimentRequest):
     try:
+        ibm_token = _resolve_ibm_token()
         result = await run_in_threadpool(
             submit_knot_experiment,
-            req.ibm_token,
+            ibm_token,
             req.backend_name,
             req.braid_word,
             req.shots,
@@ -217,9 +216,10 @@ async def submit_experiment_job(req: ExperimentRequest):
 @app.post("/api/jobs/poll")
 async def poll_experiment_job(req: PollJobRequest):
     try:
+        ibm_token = _resolve_ibm_token()
         result = await run_in_threadpool(
             poll_knot_experiment_result,
-            req.ibm_token,
+            ibm_token,
             req.job_id,
             req.runtime_channel,
             req.runtime_instance,
@@ -234,9 +234,10 @@ async def poll_experiment_job(req: PollJobRequest):
 @app.post("/api/jobs/cancel")
 async def cancel_experiment_job(req: PollJobRequest):
     try:
+        ibm_token = _resolve_ibm_token()
         result = await run_in_threadpool(
             cancel_knot_experiment,
-            req.ibm_token,
+            ibm_token,
             req.job_id,
             req.runtime_channel,
             req.runtime_instance,
@@ -251,9 +252,10 @@ async def cancel_experiment_job(req: PollJobRequest):
 @app.post("/api/backends")
 async def list_backends(req: RuntimeServiceRequest):
     try:
+        ibm_token = _resolve_ibm_token()
         result = await run_in_threadpool(
             list_accessible_backends,
-            req.ibm_token,
+            ibm_token,
             req.runtime_channel,
             req.runtime_instance,
         )

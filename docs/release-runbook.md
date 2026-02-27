@@ -18,12 +18,16 @@ This runbook defines the release gate workflow for phase seven.
 Run the full automated test gate:
 
 ```bash
+npm run lint
 npm run test:all
+npm run build
 ```
 
 Expected result:
+- type check passes
 - frontend tests pass
 - backend tests pass
+- production build completes
 
 ## 3. Packaged Container Gate
 
@@ -79,7 +83,7 @@ Pre-flight guidance:
 1. Start backend runtime (`docker compose up -d` or local standalone launcher).
 2. Set environment variables:
    ```bash
-   export QKNOT_IBM_TOKEN="<your-token>"
+   export IBM_QUANTUM_TOKEN="<your-token>"
    export QKNOT_BACKEND_NAME="ibm_kyiv"
    export QKNOT_RUNTIME_CHANNEL="ibm_cloud"
    # Optional:
@@ -91,3 +95,4 @@ Pre-flight guidance:
    python3 scripts/run-live-hardware-smoke.py
    ```
 4. Archive the output payload in release notes.
+5. If the backend is not running, the smoke script exits with a network error and nonzero status.

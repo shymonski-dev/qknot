@@ -9,7 +9,6 @@ interface Props {
 
 export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
   const [notation, setNotation] = useState(activeKnot?.dowkerNotation || '');
-  const [backendUrl, setBackendUrl] = useState('http://localhost:8000');
   const [isCompiling, setIsCompiling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -38,8 +37,7 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
     setStatusMessage(null);
 
     try {
-      const normalizedBackendUrl = backendUrl.trim().replace(/\/$/, '');
-      const response = await fetch(`${normalizedBackendUrl}/api/knot/ingest`, {
+      const response = await fetch('/api/knot/ingest', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,7 +66,7 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.name === 'TypeError') {
-          setError(`Could not reach the Python backend at ${backendUrl.trim() || 'the configured address'}.`);
+          setError('Could not reach the backend API.');
         } else {
           setError(err.message || 'Failed to compile knot notation.');
         }
@@ -123,19 +121,6 @@ export default function KnotIngestion({ activeKnot, onCompiled }: Props) {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                Python Backend URL
-              </label>
-              <input
-                type="text"
-                value={backendUrl}
-                onChange={(e) => setBackendUrl(e.target.value)}
-                className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 transition-all"
-                placeholder="http://localhost:8000"
-              />
-            </div>
-            
             <button
               onClick={handleCompile}
               disabled={isCompiling || !notation.trim()}

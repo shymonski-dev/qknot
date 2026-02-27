@@ -50,7 +50,7 @@ describe('KnotIngestion', () => {
     });
 
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('http://localhost:8000/api/knot/ingest');
+    expect(url).toBe('/api/knot/ingest');
     expect(init?.method).toBe('POST');
     expect(JSON.parse(String(init?.body))).toEqual({ dowker_notation: '4,-6,2' });
 
@@ -92,7 +92,7 @@ describe('KnotIngestion', () => {
     await user.click(screen.getByRole('button', { name: /compile to braid word/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/could not reach the python backend at http:\/\/localhost:8000\./i)).toBeInTheDocument();
+      expect(screen.getByText(/could not reach the backend api\./i)).toBeInTheDocument();
     });
     expect(onCompiled).not.toHaveBeenCalled();
   });

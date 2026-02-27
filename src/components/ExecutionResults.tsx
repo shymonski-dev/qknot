@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Play, BarChart3, Key, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { Play, BarChart3, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import {
   BackendCatalogResponse,
   ExecutionSettings,
@@ -24,7 +24,6 @@ type RuntimeChannelSelection = 'auto' | 'ibm_quantum_platform' | 'ibm_cloud' | '
 type PendingJobSnapshot = {
   job_id: string;
   backend_name: string;
-  backend_url: string;
   runtime_channel: RuntimeChannelSelection;
   runtime_instance: string | null;
 };
@@ -127,7 +126,7 @@ function isPendingJobSnapshot(value: unknown): value is PendingJobSnapshot {
   if (!value || typeof value !== 'object') {
     return false;
   }
-  const candidate = value as Partial<PendingJobSnapshot>;
+  const candidate = value as Partial<PendingJobSnapshot> & { backend_url?: unknown };
   const runtimeChannel = candidate.runtime_channel;
   const runtimeChannelIsValid =
     runtimeChannel === 'auto'
@@ -137,8 +136,8 @@ function isPendingJobSnapshot(value: unknown): value is PendingJobSnapshot {
   return (
     typeof candidate.job_id === 'string'
     && typeof candidate.backend_name === 'string'
-    && typeof candidate.backend_url === 'string'
     && runtimeChannelIsValid
+    && (candidate.backend_url === undefined || typeof candidate.backend_url === 'string')
     && (candidate.runtime_instance === null || typeof candidate.runtime_instance === 'string')
   );
 }
@@ -191,8 +190,6 @@ export default function ExecutionResults({
   maxPollAttempts = MAX_POLL_ATTEMPTS,
 }: Props) {
   const [pendingResumeJob, setPendingResumeJob] = useState<PendingJobSnapshot | null>(() => loadPendingJobSnapshot());
-  const [ibmToken, setIbmToken] = useState('');
-  const [backendUrl, setBackendUrl] = useState(() => pendingResumeJob?.backend_url ?? 'http://localhost:8000');
   const [runtimeChannel, setRuntimeChannel] = useState<RuntimeChannelSelection>(
     () => pendingResumeJob?.runtime_channel ?? 'auto',
   );
@@ -241,16 +238,12 @@ export default function ExecutionResults({
     setPendingResumeJob(snapshot);
   };
 
-  const normalizeBackendUrl = () => backendUrl.trim().replace(/\/$/, '');
-
   const pollRuntimeJob = async ({
-    normalizedBackendUrl,
     jobId,
     backendNameHint,
     runtimeChannelForJob,
     runtimeInstanceForJob,
   }: {
-    normalizedBackendUrl: string;
     jobId: string;
     backendNameHint: string;
     runtimeChannelForJob: RuntimeChannelSelection;
@@ -261,13 +254,12 @@ export default function ExecutionResults({
         throw new Error(POLL_CANCELLED_ERROR);
       }
 
-      const pollResponse = await fetch(`${normalizedBackendUrl}/api/jobs/poll`, {
+      const pollResponse = await fetch('/api/jobs/poll', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ibm_token: ibmToken,
           job_id: jobId,
           ...readRuntimePayload(runtimeChannelForJob, runtimeInstanceForJob),
         }),
@@ -317,7 +309,6 @@ export default function ExecutionResults({
     const timeoutSnapshot: PendingJobSnapshot = {
       job_id: jobId,
       backend_name: backendNameHint || targetBackend,
-      backend_url: normalizedBackendUrl,
       runtime_channel: runtimeChannelForJob,
       runtime_instance: runtimeInstanceForJob.trim() ? runtimeInstanceForJob.trim() : null,
     };
@@ -360,11 +351,6 @@ export default function ExecutionResults({
       return;
     }
 
-    if (!ibmToken) {
-      setError("IBM Quantum API Token is required to run on actual hardware.");
-      return;
-    }
-
     const braidValidationError = validateBraidWordForExecution(activeKnot?.braidWord);
     if (braidValidationError) {
       setError(braidValidationError);
@@ -377,15 +363,13 @@ export default function ExecutionResults({
     setStatusDetail(null);
     
     try {
-      const normalizedBackendUrl = normalizeBackendUrl();
       const runtimePayload = readRuntimePayload(runtimeChannel, runtimeInstance);
-      const submitResponse = await fetch(`${normalizedBackendUrl}/api/jobs/submit`, {
+      const submitResponse = await fetch('/api/jobs/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ibm_token: ibmToken,
           backend_name: targetBackend,
           braid_word: activeKnot?.braidWord?.trim(),
           shots: executionSettings.shots,
@@ -421,14 +405,12 @@ export default function ExecutionResults({
       const pendingSnapshot: PendingJobSnapshot = {
         job_id: submittedJob.job_id,
         backend_name: submittedJob.backend || targetBackend,
-        backend_url: normalizedBackendUrl,
         runtime_channel: runtimeChannel,
         runtime_instance: runtimeInstance.trim() ? runtimeInstance.trim() : null,
       };
       persistPendingJob(pendingSnapshot);
 
       await pollRuntimeJob({
-        normalizedBackendUrl,
         jobId: submittedJob.job_id,
         backendNameHint: submittedJob.backend || targetBackend,
         runtimeChannelForJob: runtimeChannel,
@@ -440,12 +422,12 @@ export default function ExecutionResults({
           return;
         }
         if (err.name === 'TypeError') {
-          setError(`Could not reach the Python backend at ${backendUrl.trim() || 'the configured address'}.`);
+          setError('Could not reach the backend API.');
         } else {
-          setError(err.message || "Failed to connect to the Python backend. Ensure it is running locally.");
+          setError(err.message || 'Failed to connect to the backend API. Ensure it is running.');
         }
       } else {
-        setError("Failed to connect to the Python backend. Ensure it is running locally.");
+        setError('Failed to connect to the backend API. Ensure it is running.');
       }
     } finally {
       setIsExecuting(false);
@@ -459,15 +441,6 @@ export default function ExecutionResults({
     if (!pendingResumeJob) {
       return;
     }
-
-    if (!ibmToken.trim()) {
-      setError('IBM Quantum API Token is required to resume polling a pending job.');
-      return;
-    }
-
-    const normalizedBackendUrl = pendingResumeJob.backend_url.trim().replace(/\/$/, '');
-
-    setBackendUrl(normalizedBackendUrl);
     setRuntimeChannel(pendingResumeJob.runtime_channel);
     setRuntimeInstance(pendingResumeJob.runtime_instance ?? '');
     setJobStatus({
@@ -481,7 +454,6 @@ export default function ExecutionResults({
 
     try {
       await pollRuntimeJob({
-        normalizedBackendUrl,
         jobId: pendingResumeJob.job_id,
         backendNameHint: pendingResumeJob.backend_name,
         runtimeChannelForJob: pendingResumeJob.runtime_channel,
@@ -493,7 +465,7 @@ export default function ExecutionResults({
           return;
         }
         if (err.name === 'TypeError') {
-          setError(`Could not reach the Python backend at ${normalizedBackendUrl || 'the configured address'}.`);
+          setError('Could not reach the backend API.');
         } else {
           setError(err.message || 'Failed to resume polling.');
         }
@@ -509,10 +481,6 @@ export default function ExecutionResults({
     if (!jobStatus?.job_id) {
       return;
     }
-    if (!ibmToken.trim()) {
-      setError('IBM Quantum API Token is required to cancel a runtime job.');
-      return;
-    }
 
     cancelRequestedRef.current = true;
     setIsCancelling(true);
@@ -520,14 +488,12 @@ export default function ExecutionResults({
     setStatusDetail(null);
 
     try {
-      const normalizedBackendUrl = normalizeBackendUrl();
-      const response = await fetch(`${normalizedBackendUrl}/api/jobs/cancel`, {
+      const response = await fetch('/api/jobs/cancel', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ibm_token: ibmToken,
           job_id: jobStatus.job_id,
           ...readRuntimePayload(runtimeChannel, runtimeInstance),
         }),
@@ -548,7 +514,7 @@ export default function ExecutionResults({
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.name === 'TypeError') {
-          setError(`Could not reach the Python backend at ${backendUrl.trim() || 'the configured address'}.`);
+          setError('Could not reach the backend API.');
         } else {
           setError(err.message || 'Failed to cancel runtime job.');
         }
@@ -562,24 +528,16 @@ export default function ExecutionResults({
   };
 
   const handleLoadBackends = async () => {
-    if (!ibmToken.trim()) {
-      setBackendCatalog(null);
-      setBackendCatalogError('IBM Quantum API Token is required to list accessible hardware backends.');
-      return;
-    }
-
     setIsLoadingBackends(true);
     setBackendCatalogError(null);
 
     try {
-      const normalizedBackendUrl = normalizeBackendUrl();
-      const response = await fetch(`${normalizedBackendUrl}/api/backends`, {
+      const response = await fetch('/api/backends', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ibm_token: ibmToken,
           ...readRuntimePayload(runtimeChannel, runtimeInstance),
         }),
       });
@@ -597,7 +555,7 @@ export default function ExecutionResults({
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.name === 'TypeError') {
-          setBackendCatalogError(`Could not reach the Python backend at ${backendUrl.trim() || 'the configured address'}.`);
+          setBackendCatalogError('Could not reach the backend API.');
         } else {
           setBackendCatalogError(err.message || 'Failed to list accessible hardware backends.');
         }
@@ -626,13 +584,12 @@ export default function ExecutionResults({
               <h3 className="text-sm font-medium text-amber-400">Pending Runtime Job Found</h3>
               <p className="text-xs text-amber-400/80 mt-1">
                 Job {pendingResumeJob?.job_id} is saved from a previous session.
-                {' '}Enter your token and resume polling to fetch final results.
+                {' '}Resume polling to fetch final results.
               </p>
             </div>
           </div>
           <button
             onClick={handleResumePendingJob}
-            disabled={!ibmToken.trim()}
             className="w-full bg-amber-400/80 hover:bg-amber-400 text-amber-950 font-medium py-2.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Resume Pending Job
@@ -715,24 +672,11 @@ export default function ExecutionResults({
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <div className="flex items-center gap-2 mb-6">
-              <Key className="w-5 h-5 text-emerald-500" />
-              <h3 className="font-medium text-zinc-200">Hardware Connection</h3>
+              <Info className="w-5 h-5 text-emerald-500" />
+              <h3 className="font-medium text-zinc-200">Hardware Runtime</h3>
             </div>
             
             <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  IBM Quantum API Token
-                </label>
-                <input
-                  type="password"
-                  value={ibmToken}
-                  onChange={(e) => setIbmToken(e.target.value)}
-                  placeholder="Paste your IBM token here..."
-                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
-                />
-              </div>
-
               <div>
                 <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
                   Runtime Channel
@@ -765,21 +709,6 @@ export default function ExecutionResults({
                 />
                 <p className="text-[10px] text-zinc-500 mt-2 leading-tight">
                   Some IBM runtime accounts require an instance to access hardware backends.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Python Backend URL
-                </label>
-                <input
-                  type="text"
-                  value={backendUrl}
-                  onChange={(e) => setBackendUrl(e.target.value)}
-                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
-                />
-                <p className="text-[10px] text-zinc-500 mt-2 leading-tight">
-                  The Python backend must be running locally to interface with the Qiskit Runtime API.
                 </p>
               </div>
               

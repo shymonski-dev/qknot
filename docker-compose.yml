@@ -8,3 +8,4 @@ services:
       - "8000:8000"
     environment:
       QKNOT_SERVE_FRONTEND: "1"
+      IBM_QUANTUM_TOKEN: ${IBM_QUANTUM_TOKEN:-}

@@ -51,11 +51,17 @@ def _post_json(url: str, payload: dict) -> tuple[int, dict]:
 
 def main() -> int:
     try:
-        ibm_token = _read_required_env("QKNOT_IBM_TOKEN")
         backend_name = _read_required_env("QKNOT_BACKEND_NAME")
     except ValueError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
+
+    if not _read_optional_env("IBM_QUANTUM_TOKEN") and not _read_optional_env("QKNOT_IBM_TOKEN"):
+        print(
+            "Warning: IBM_QUANTUM_TOKEN is not set in this shell. "
+            "Ensure the backend runtime process has IBM credentials configured.",
+            file=sys.stderr,
+        )
 
     backend_url = _read_optional_env("QKNOT_BACKEND_URL") or "http://127.0.0.1:8000"
     backend_url = backend_url.rstrip("/")
@@ -69,7 +75,6 @@ def main() -> int:
     max_poll_attempts = int(_read_optional_env("QKNOT_MAX_POLL_ATTEMPTS") or "120")
 
     submit_payload = {
-        "ibm_token": ibm_token,
         "backend_name": backend_name,
         "braid_word": braid_word,
         "shots": shots,
@@ -82,7 +87,11 @@ def main() -> int:
         submit_payload["runtime_instance"] = runtime_instance
 
     print("Submitting live hardware smoke job...")
-    submit_status, submit_response = _post_json(f"{backend_url}/api/jobs/submit", submit_payload)
+    try:
+        submit_status, submit_response = _post_json(f"{backend_url}/api/jobs/submit", submit_payload)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     if submit_status >= 400:
         print(f"Submission failed ({submit_status}): {submit_response}", file=sys.stderr)
         return 1
@@ -94,14 +103,18 @@ def main() -> int:
 
     print(f"Submitted job_id={job_id}, status={submit_response.get('status')}")
 
-    poll_payload = {"ibm_token": ibm_token, "job_id": job_id}
+    poll_payload = {"job_id": job_id}
     if runtime_channel:
         poll_payload["runtime_channel"] = runtime_channel
     if runtime_instance:
         poll_payload["runtime_instance"] = runtime_instance
 
     for attempt in range(1, max_poll_attempts + 1):
-        poll_status, poll_response = _post_json(f"{backend_url}/api/jobs/poll", poll_payload)
+        try:
+            poll_status, poll_response = _post_json(f"{backend_url}/api/jobs/poll", poll_payload)
+        except RuntimeError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
         if poll_status >= 400:
             print(f"Polling failed ({poll_status}): {poll_response}", file=sys.stderr)
             return 1

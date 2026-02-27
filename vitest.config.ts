@@ -21,15 +21,6 @@ export default defineConfig({
   esbuild: {
     target: 'es2022',
     jsx: 'automatic',
-    tsconfigRaw: {
-      compilerOptions: {
-        target: 'ES2022',
-        module: 'ESNext',
-        moduleResolution: 'Node',
-        jsx: 'react-jsx',
-        types: ['vitest/globals', '@testing-library/jest-dom'],
-      },
-    },
   },
   test: {
     environment: 'happy-dom',
