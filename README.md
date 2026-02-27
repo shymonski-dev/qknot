@@ -115,6 +115,13 @@ In the `Execution & Results` screen:
 - Generation returns backend computed circuit metadata: depth, width, operation counts, and a deterministic signature.
 - The execution submit request includes closure method and compares the generated signature with the submitted job circuit signature before polling.
 
+## Expanded braid support behavior
+
+- Braid parsing now accepts tokens in the form `sN` and `sN^-1` for any positive integer `N`.
+- Verification checks for contiguous generator ranges and reports missing generators in computed evidence.
+- Circuit generation scales qubit width with the highest generator index in the braid word.
+- Execution blocks invalid braid problems before submit, including too few tokens, one-generator braids, and non-contiguous generator ranges.
+
 ## Development checks
 
 Use Node.js `22.19.0` (or any `22.x`) before running front end checks:

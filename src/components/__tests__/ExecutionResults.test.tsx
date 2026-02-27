@@ -106,6 +106,27 @@ describe('ExecutionResults', () => {
     expect(screen.getByText(/shots must be a whole number between 1 and 100000/i)).toBeInTheDocument();
   });
 
+  it('blocks submit when braid word is not contiguous', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithHarness({
+      activeKnot: {
+        ...compiledKnot,
+        braidWord: 's1 s3 s1',
+      },
+    });
+
+    await user.type(screen.getByPlaceholderText(/paste your ibm token here/i), 'token-123');
+    await user.click(screen.getByRole('button', { name: /execute job on ibm_kyiv/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/must use contiguous generators from s1 through s3/i)).toBeInTheDocument();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('submits and polls with the expected payloads', async () => {
     const user = userEvent.setup();
     const onExecutionComplete = vi.fn();

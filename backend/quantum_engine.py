@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from qiskit import QuantumCircuit
 
 
-BRAID_TOKEN_RE = re.compile(r"^s([12])(\^-1)?$")
+BRAID_TOKEN_RE = re.compile(r"^s([1-9]\d*)(\^-1)?$")
 AUTO_RUNTIME_CHANNELS = ("ibm_quantum_platform", "ibm_cloud", "ibm_quantum")
 DEFAULT_ROOT_OF_UNITY = 5
 DEFAULT_CLOSURE_METHOD = "trace"
@@ -36,8 +36,8 @@ _DOWKER_BRAID_CATALOG = {
 
 def parse_braid_word(braid_word: str):
     """
-    Parse a simplified braid word and return (generator, is_inverse) tuples.
-    Supported tokens: s1, s2, s1^-1, s2^-1
+    Parse a braid word and return (generator, is_inverse) tuples.
+    Supported token pattern: sN or sN^-1, where N is a positive integer.
     """
     if not braid_word or not braid_word.strip():
         raise ValueError("Braid word cannot be empty.")
@@ -47,11 +47,91 @@ def parse_braid_word(braid_word: str):
         match = BRAID_TOKEN_RE.fullmatch(token)
         if not match:
             raise ValueError(
-                f"Unsupported braid token '{token}'. Supported tokens are: s1, s2, s1^-1, s2^-1."
+                f"Unsupported braid token '{token}'. Supported tokens follow sN or sN^-1, where N is a positive integer."
             )
         parsed.append((int(match.group(1)), bool(match.group(2))))
 
     return parsed
+
+
+def analyze_braid_word(braid_word: str):
+    parsed_braid = parse_braid_word(braid_word)
+
+    token_count = len(parsed_braid)
+    generator_count_by_index: dict[int, int] = {}
+    inverse_count = 0
+    net_writhe = 0
+    generator_switches = 0
+    previous_generator = None
+
+    for generator, is_inverse in parsed_braid:
+        generator_count_by_index[generator] = generator_count_by_index.get(generator, 0) + 1
+        if is_inverse:
+            inverse_count += 1
+            net_writhe -= 1
+        else:
+            net_writhe += 1
+
+        if previous_generator is not None and previous_generator != generator:
+            generator_switches += 1
+        previous_generator = generator
+
+    sorted_generator_indices = sorted(generator_count_by_index.keys())
+    max_generator_index = sorted_generator_indices[-1]
+    expected_generator_indices = list(range(1, max_generator_index + 1))
+    missing_generator_indices = [
+        generator_index
+        for generator_index in expected_generator_indices
+        if generator_index not in generator_count_by_index
+    ]
+    unique_generator_count = len(sorted_generator_indices)
+    strand_count = max_generator_index + 1
+    is_contiguous_generator_range = len(missing_generator_indices) == 0
+    alternation_ratio = generator_switches / max(token_count - 1, 1)
+
+    if unique_generator_count >= 2 and is_contiguous_generator_range:
+        strand_connectivity = f"connected-{strand_count}-strand"
+    else:
+        strand_connectivity = f"partial-{strand_count}-strand"
+
+    return {
+        "parsed_braid": parsed_braid,
+        "token_count": token_count,
+        "generator_counts": {
+            f"s{generator_index}": generator_count_by_index[generator_index]
+            for generator_index in sorted_generator_indices
+        },
+        "inverse_count": inverse_count,
+        "net_writhe": net_writhe,
+        "generator_switches": generator_switches,
+        "alternation_ratio": round(alternation_ratio, 3),
+        "unique_generator_count": unique_generator_count,
+        "max_generator_index": max_generator_index,
+        "strand_count": strand_count,
+        "missing_generators": [f"s{generator_index}" for generator_index in missing_generator_indices],
+        "is_contiguous_generator_range": is_contiguous_generator_range,
+        "strand_connectivity": strand_connectivity,
+        "required_qubits": strand_count + 1,  # one ancilla plus one qubit per strand
+    }
+
+
+def validate_braid_problem_input(braid_word: str):
+    analysis = analyze_braid_word(braid_word)
+
+    if analysis["token_count"] < 3:
+        raise ValueError("Braid word must contain at least three generators before execution.")
+
+    if analysis["unique_generator_count"] < 2:
+        raise ValueError("Braid word must include at least two distinct generators before execution.")
+
+    if not analysis["is_contiguous_generator_range"]:
+        missing_generators = ", ".join(analysis["missing_generators"])
+        raise ValueError(
+            "Braid word must use contiguous generators from s1 through "
+            f"s{analysis['max_generator_index']}. Missing: {missing_generators}."
+        )
+
+    return analysis
 
 
 def _normalize_dowker_tokens(dowker_notation: str):
@@ -92,10 +172,12 @@ def _normalize_dowker_tokens(dowker_notation: str):
 
 
 def _compile_tokens_to_braid(parsed_tokens: list[int]):
-    # Phase two compiler fallback keeps braid tokens within currently supported generators.
+    # Fallback mapping expands generator usage with notation size while remaining deterministic.
+    strand_count = max(3, (len(parsed_tokens) // 2) + 2)
+    max_generator = strand_count - 1
     braid_tokens = []
     for index, token in enumerate(parsed_tokens):
-        generator = "s1" if index % 2 == 0 else "s2"
+        generator = f"s{(index % max_generator) + 1}"
         if token < 0:
             braid_tokens.append(f"{generator}^-1")
         else:
@@ -130,43 +212,22 @@ def compile_dowker_notation(dowker_notation: str):
 
 
 def verify_topological_mapping(braid_word: str):
-    parsed_braid = parse_braid_word(braid_word)
-
-    token_count = len(parsed_braid)
-    generator_counts = {"s1": 0, "s2": 0}
-    inverse_count = 0
-    net_writhe = 0
-    generator_switches = 0
-
-    previous_generator = None
-    for generator, is_inverse in parsed_braid:
-        token = f"s{generator}"
-        generator_counts[token] += 1
-        if is_inverse:
-            inverse_count += 1
-            net_writhe -= 1
-        else:
-            net_writhe += 1
-
-        if previous_generator is not None and previous_generator != generator:
-            generator_switches += 1
-        previous_generator = generator
-
-    uses_all_supported_generators = generator_counts["s1"] > 0 and generator_counts["s2"] > 0
-    strand_connectivity = "connected-3-strand" if uses_all_supported_generators else "partial-3-strand"
-    alternation_ratio = generator_switches / max(token_count - 1, 1)
-
+    analysis = analyze_braid_word(braid_word)
     evidence = {
-        "token_count": token_count,
-        "generator_counts": generator_counts,
-        "inverse_count": inverse_count,
-        "net_writhe": net_writhe,
-        "generator_switches": generator_switches,
-        "alternation_ratio": round(alternation_ratio, 3),
-        "strand_connectivity": strand_connectivity,
+        "token_count": analysis["token_count"],
+        "generator_counts": analysis["generator_counts"],
+        "inverse_count": analysis["inverse_count"],
+        "net_writhe": analysis["net_writhe"],
+        "generator_switches": analysis["generator_switches"],
+        "alternation_ratio": analysis["alternation_ratio"],
+        "unique_generator_count": analysis["unique_generator_count"],
+        "max_generator_index": analysis["max_generator_index"],
+        "strand_count": analysis["strand_count"],
+        "missing_generators": analysis["missing_generators"],
+        "strand_connectivity": analysis["strand_connectivity"],
     }
 
-    if token_count < 3:
+    if analysis["token_count"] < 3:
         return {
             "is_verified": False,
             "status": "failed",
@@ -174,13 +235,25 @@ def verify_topological_mapping(braid_word: str):
             "evidence": evidence,
         }
 
-    if not uses_all_supported_generators:
+    if analysis["unique_generator_count"] < 2:
         return {
             "is_verified": False,
             "status": "failed",
             "detail": (
-                "Verification failed: braid word must include both s1 and s2 "
-                "to demonstrate three-strand topological connectivity."
+                "Verification failed: braid word must include at least two distinct generators "
+                "to demonstrate strand connectivity."
+            ),
+            "evidence": evidence,
+        }
+
+    if not analysis["is_contiguous_generator_range"]:
+        missing_generators = ", ".join(analysis["missing_generators"])
+        return {
+            "is_verified": False,
+            "status": "failed",
+            "detail": (
+                "Verification failed: braid word must use contiguous generators from s1 through "
+                f"s{analysis['max_generator_index']}. Missing: {missing_generators}."
             ),
             "evidence": evidence,
         }
@@ -188,7 +261,10 @@ def verify_topological_mapping(braid_word: str):
     return {
         "is_verified": True,
         "status": "verified",
-        "detail": "Topological verification passed with connected three-strand braid evidence.",
+        "detail": (
+            "Topological verification passed with connected "
+            f"{analysis['strand_count']}-strand braid evidence."
+        ),
         "evidence": evidence,
     }
 
@@ -207,9 +283,12 @@ def build_knot_circuit(
     from qiskit import QuantumCircuit
 
     _validate_closure_method(closure_method)
-    parsed_braid = parse_braid_word(braid_word)
+    braid_analysis = validate_braid_problem_input(braid_word)
+    parsed_braid = braid_analysis["parsed_braid"]
+    strand_count = braid_analysis["strand_count"]
 
-    qc = QuantumCircuit(3, 1)
+    # One ancilla plus one qubit per strand.
+    qc = QuantumCircuit(strand_count + 1, 1)
     theta = 2 * np.pi / root_of_unity
 
     if closure_method == "trace":
@@ -222,8 +301,8 @@ def build_knot_circuit(
         apply_braid_generator(
             qc,
             ancilla=0,
-            data_a=1,
-            data_b=2,
+            data_a=generator,
+            data_b=generator + 1,
             generator=generator,
             is_inverse=is_inverse,
             theta=theta,
@@ -325,6 +404,7 @@ def generate_knot_circuit_artifact(
     if optimization_level < 0 or optimization_level > 3:
         raise ValueError("Optimization level must be between 0 and 3.")
     _validate_closure_method(closure_method)
+    validate_braid_problem_input(braid_word)
 
     from qiskit import transpile
 
@@ -677,6 +757,7 @@ def _build_and_submit_knot_job(
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
 
     _validate_closure_method(closure_method)
+    braid_analysis = validate_braid_problem_input(braid_word)
 
     service, channel_used = create_runtime_service(
         QiskitRuntimeService=QiskitRuntimeService,
@@ -686,6 +767,13 @@ def _build_and_submit_knot_job(
     )
 
     backend = select_backend(service, backend_name)
+    backend_num_qubits = resolve_backend_num_qubits(backend)
+    required_qubits = braid_analysis["required_qubits"]
+    if backend_num_qubits is not None and backend_num_qubits < required_qubits:
+        raise ValueError(
+            f"Selected backend '{resolve_backend_name(backend)}' has {backend_num_qubits} qubits, "
+            f"but the braid word requires at least {required_qubits} qubits."
+        )
     logical_circuit = build_knot_circuit(
         braid_word=braid_word,
         closure_method=closure_method,
@@ -714,25 +802,26 @@ def apply_braid_generator(
 ):
     """
     Apply a simplified controlled unitary for a braid generator.
-    This is still a mock physics model, but now the circuit changes with the braid word.
+    Odd generators use one entangling pattern and even generators use an alternate pattern.
     """
+    if generator < 1:
+        raise ValueError(f"Unsupported braid generator index: s{generator}")
+
     phase = -theta if is_inverse else theta
 
-    if generator == 1:
+    if generator % 2 == 1:
         qc.cx(data_a, data_b)
         qc.cp(phase, ancilla, data_a)
         qc.cx(data_a, data_b)
         return
 
-    if generator == 2:
+    if generator % 2 == 0:
         qc.h(data_a)
         qc.cx(data_b, data_a)
         qc.cp(phase, ancilla, data_b)
         qc.cx(data_b, data_a)
         qc.h(data_a)
         return
-
-    raise ValueError(f"Unsupported braid generator index: s{generator}")
 
 
 def submit_knot_experiment(

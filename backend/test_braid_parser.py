@@ -9,15 +9,19 @@ from quantum_engine import parse_braid_word
 
 
 class ParseBraidWordTests(unittest.TestCase):
-    def test_parses_supported_tokens(self):
+    def test_parses_expanded_supported_tokens(self):
         self.assertEqual(
-            parse_braid_word("s1 s2^-1 s1^-1 s2"),
-            [(1, False), (2, True), (1, True), (2, False)],
+            parse_braid_word("s1 s2^-1 s12^-1 s3"),
+            [(1, False), (2, True), (12, True), (3, False)],
         )
 
-    def test_rejects_unsupported_token(self):
+    def test_rejects_zero_generator_token(self):
         with self.assertRaisesRegex(ValueError, "Unsupported braid token"):
-            parse_braid_word("s3")
+            parse_braid_word("s0")
+
+    def test_rejects_non_braid_token(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported braid token"):
+            parse_braid_word("x3")
 
     def test_rejects_blank_braid_word(self):
         with self.assertRaisesRegex(ValueError, "cannot be empty"):

@@ -108,6 +108,15 @@ class CircuitGenerationArtifactTests(unittest.TestCase):
                 target_backend="ibm_kyiv",
             )
 
+    def test_rejects_non_contiguous_braid_word(self):
+        with self.assertRaisesRegex(ValueError, "Missing: s2"):
+            quantum_engine.generate_knot_circuit_artifact(
+                braid_word="s1 s3 s1",
+                optimization_level=2,
+                closure_method="trace",
+                target_backend="ibm_kyiv",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

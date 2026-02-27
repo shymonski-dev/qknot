@@ -37,7 +37,7 @@ class KnotIngestionCompilerTests(unittest.TestCase):
         self.assertFalse(result["is_catalog_match"])
         self.assertEqual(
             result["braid_word"],
-            "s1 s2 s1 s2 s1 s2",
+            "s1 s2 s3 s4 s1 s2",
         )
 
     def test_rejects_odd_value(self):

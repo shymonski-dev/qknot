@@ -115,6 +115,10 @@ class ExperimentRequestModelTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             _valid_request(optimization_level=9)
 
+    def test_accepts_expanded_generator_tokens(self):
+        req = _valid_request(braid_word=" s1 s2^-1 s3 s4^-1 ")
+        self.assertEqual(req.braid_word, "s1 s2^-1 s3 s4^-1")
+
 
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
 class PollJobRequestModelTests(unittest.TestCase):
@@ -178,6 +182,10 @@ class CircuitGenerationRequestModelTests(unittest.TestCase):
     def test_rejects_blank_braid_word(self):
         with self.assertRaises(ValidationError):
             _valid_circuit_generation_request(braid_word="   ")
+
+    def test_accepts_expanded_generator_tokens(self):
+        req = _valid_circuit_generation_request(braid_word=" s1 s2 s3^-1 s4 ")
+        self.assertEqual(req.braid_word, "s1 s2 s3^-1 s4")
 
 
 @unittest.skipIf(_TEST_IMPORT_ERROR is not None, f"FastAPI backend test dependencies unavailable: {_TEST_IMPORT_ERROR}")
@@ -483,18 +491,18 @@ class SubmitPollRouteSequenceTests(unittest.TestCase):
 
     def test_knot_verification_route_maps_value_error_to_422(self):
         client = TestClient(backend_main.app)
-        run_in_threadpool_mock = AsyncMock(side_effect=ValueError("Unsupported braid token 's3'."))
+        run_in_threadpool_mock = AsyncMock(side_effect=ValueError("Unsupported braid token 'x3'."))
 
         with patch.object(backend_main, "run_in_threadpool", run_in_threadpool_mock):
             response = client.post(
                 "/api/knot/verify",
                 json={
-                    "braid_word": "s1 s3",
+                    "braid_word": "s1 x3",
                 },
             )
 
         self.assertEqual(response.status_code, 422)
-        self.assertEqual(response.json(), {"detail": "Unsupported braid token 's3'."})
+        self.assertEqual(response.json(), {"detail": "Unsupported braid token 'x3'."})
 
     def test_knot_circuit_generation_route_uses_expected_threadpool_target(self):
         client = TestClient(backend_main.app)

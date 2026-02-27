@@ -36,6 +36,7 @@ const PENDING_JOB_STORAGE_KEY = 'qknot.pending_job';
 const POLL_CANCELLED_ERROR = 'QKNOT_POLL_CANCELLED';
 const IN_PROGRESS_JOB_STATUSES = new Set(['INITIALIZING', 'QUEUED', 'RUNNING', 'VALIDATING', 'SUBMITTED']);
 const FAILED_JOB_STATUSES = new Set(['FAILED', 'ERROR', 'CANCELLED', 'CANCELED']);
+const BRAID_TOKEN_REGEX = /^s([1-9]\d*)(\^-1)?$/;
 
 function isCompiledOrLater(status: KnotData['status'] | undefined) {
   return status === 'compiled' || status === 'executed';
@@ -62,6 +63,49 @@ function sleep(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function validateBraidWordForExecution(braidWord: string | undefined): string | null {
+  const normalizedBraidWord = braidWord?.trim() ?? '';
+  if (!normalizedBraidWord) {
+    return 'Braid word is required before execution.';
+  }
+
+  const tokens = normalizedBraidWord.split(/\s+/);
+  const generators: number[] = [];
+  for (const token of tokens) {
+    const match = BRAID_TOKEN_REGEX.exec(token);
+    if (!match) {
+      return `Unsupported braid token '${token}'. Use tokens like s1 or s3^-1.`;
+    }
+    generators.push(Number(match[1]));
+  }
+
+  if (tokens.length < 3) {
+    return 'Braid word must contain at least three generators before execution.';
+  }
+
+  const uniqueGenerators = new Set(generators);
+  if (uniqueGenerators.size < 2) {
+    return 'Braid word must include at least two distinct generators before execution.';
+  }
+
+  const maxGenerator = Math.max(...generators);
+  const missingGenerators: string[] = [];
+  for (let generator = 1; generator <= maxGenerator; generator += 1) {
+    if (!uniqueGenerators.has(generator)) {
+      missingGenerators.push(`s${generator}`);
+    }
+  }
+
+  if (missingGenerators.length > 0) {
+    return (
+      `Braid word must use contiguous generators from s1 through s${maxGenerator}. `
+      + `Missing: ${missingGenerators.join(', ')}.`
+    );
+  }
+
+  return null;
 }
 
 function readRuntimePayload(
@@ -320,6 +364,12 @@ export default function ExecutionResults({
       setError("IBM Quantum API Token is required to run on actual hardware.");
       return;
     }
+
+    const braidValidationError = validateBraidWordForExecution(activeKnot?.braidWord);
+    if (braidValidationError) {
+      setError(braidValidationError);
+      return;
+    }
     
     setIsExecuting(true);
     setIsCancelling(false);
@@ -337,7 +387,7 @@ export default function ExecutionResults({
         body: JSON.stringify({
           ibm_token: ibmToken,
           backend_name: targetBackend,
-          braid_word: activeKnot?.braidWord || 's1',
+          braid_word: activeKnot?.braidWord?.trim(),
           shots: executionSettings.shots,
           optimization_level: executionSettings.optimizationLevel,
           closure_method: executionSettings.closureMethod,
