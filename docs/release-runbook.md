@@ -71,6 +71,11 @@ python3 -m unittest discover -s backend -p "test_*.py"
 
 This step is optional and should run only when valid hardware credentials are available.
 
+Pre-flight guidance:
+- Use an explicit runtime channel for first live run.
+- Recommended value: `ibm_cloud`.
+- Avoid `auto` on first run because some runtime client versions may return a channel error before fallback is attempted.
+
 1. Start backend runtime (`docker compose up -d` or local standalone launcher).
 2. Set environment variables:
    ```bash

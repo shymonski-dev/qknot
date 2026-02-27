@@ -7,7 +7,7 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 - Phases one through seven are complete.
 - Release gate status is green for required checks.
 - Optional live hardware smoke run remains pending until valid IBM credentials are provided.
-- Latest validated release gate commit: `cf60193`.
+- Latest validated release gate commit: `8fa50b6`.
 
 ## What runs where
 
@@ -159,8 +159,8 @@ In the `Execution & Results` screen:
 1. Paste your IBM Quantum token.
 2. Keep `Python Backend URL` as `http://localhost:8000` unless your back end is elsewhere.
 3. Choose a runtime channel:
-   - `Auto` tries platform, cloud, then legacy for compatibility with different `qiskit-ibm-runtime` client versions.
-   - You can select a specific channel if your environment requires it.
+   - For the first live hardware run, select `ibm_cloud` explicitly.
+   - `Auto` may fail on some runtime client versions before fallback is attempted.
 4. Provide `Runtime Instance` if your account requires one.
 5. Set shots.
 6. Run the job.
