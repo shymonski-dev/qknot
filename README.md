@@ -5,6 +5,7 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 ## Current delivery status
 
 - Phases one through seven are complete.
+- Qiskit simulator backend added: full pipeline runs locally with no IBM token required.
 - Release gate status is green for all required checks including the Playwright E2E suite.
 - Live hardware smoke run completed against `ibm_fez` (Trefoil, 128 shots, job `d6h151m48nic73ameq3g`, Jones polynomial returned).
 - Latest validated release gate commit: `7c237ac`.
@@ -14,6 +15,7 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 - Front end development server: React and Vite (`http://localhost:3000`)
 - Standalone runtime: FastAPI serving both user interface and application programming interface (`http://localhost:8000`)
 - IBM hardware access: handled by the Python back end through `qiskit-ibm-runtime`
+- Local simulation: handled by the Python back end through `qiskit.primitives.StatevectorSampler` — no IBM token required
 
 ## Prerequisites
 
@@ -22,7 +24,7 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 
 Notes:
 - The pinned quantum packages in `backend/requirements.txt` may not install on very new Python releases.
-- A real IBM Quantum token must be set in backend environment variable `IBM_QUANTUM_TOKEN` for hardware routes.
+- `IBM_QUANTUM_TOKEN` is only required for IBM hardware routes. The `qiskit_simulator` backend runs locally with no token.
 - Some IBM accounts also require a runtime instance identifier.
 - Node.js 22.x is only required for development workflows and local front end rebuilds.
 - Front end commands enforce Node.js 22.x and fail fast on unsupported versions.
@@ -171,22 +173,32 @@ npm run build
 cp dist/assets/index-*.css src/styles.prebuilt.css
 ```
 
+## Running locally with the simulator (no IBM token)
+
+1. Select `qiskit_simulator (Local)` from the Target Hardware dropdown in the sidebar.
+2. Run through the pipeline: ingest → verify → generate circuit → execute.
+3. Results return immediately from `qiskit.primitives.StatevectorSampler`. No IBM token is needed.
+
+The simulator uses exact statevector simulation with no noise model. It is suitable for pipeline and development testing, not hardware-fidelity benchmarking.
+
 ## Running against IBM hardware
 
 1. Set backend credentials before starting the standalone runtime:
    ```bash
    export IBM_QUANTUM_TOKEN="<your-token>"
    ```
-2. In the `Execution & Results` screen, choose a runtime channel:
+2. Select an IBM backend from the Target Hardware dropdown.
+3. In the `Execution & Results` screen, choose a runtime channel:
    - For the first live hardware run, select `ibm_cloud` explicitly.
    - `Auto` may fail on some runtime client versions before fallback is attempted.
-3. Provide `Runtime Instance` if your account requires one.
-4. Set shots.
-5. Run the job.
+4. Provide `Runtime Instance` if your account requires one.
+5. Set shots.
+6. Run the job.
 
 Notes:
 - The execution screen no longer accepts token input.
 - The token must be provided to the backend process environment.
+- The Runtime Channel and Runtime Instance fields are hidden when `qiskit_simulator` is selected.
 
 ## Knot ingestion behavior
 
@@ -236,6 +248,21 @@ Mocked test coverage:
 Live smoke tests (Tests L1–L2) call real IBM backends and gate on `IBM_QUANTUM_TOKEN`.
 
 The Playwright config (`playwright.config.ts`) auto-starts both the backend and Vite dev server when running tests.
+
+## Backend unit tests
+
+```bash
+python3 -m unittest discover -s backend -p "test_*.py"
+```
+
+Test files:
+- `test_simulator_backend.py` — 39 tests covering `run_simulator_experiment`, `get_simulator_result`, HTTP routing, IBM regression, and a full submit→poll HTTP cycle
+- `test_submit_poll_end_to_end.py` — mocked IBM submit and poll end-to-end
+- `test_api_main.py` — Pydantic model validation and API handler routing
+- `test_braid_parser.py`, `test_braid_validation.py` — braid word parsing and validation
+- `test_circuit_generation.py` — circuit build and transpile
+- `test_knot_ingestion.py`, `test_knot_verification.py` — Dowker notation and topological verification
+- `test_poll_knot_experiment.py`, `test_quantum_engine_helpers.py` — job polling and engine helpers
 
 ## Development checks
 

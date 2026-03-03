@@ -66,9 +66,10 @@ Style note:
 
 ## 4. Mocked End To End Backend Gate
 
-Run backend tests and confirm this case passes:
+Run backend tests and confirm these cases pass:
 
 - `backend/test_submit_poll_end_to_end.py::SubmitPollEndToEndTests::test_submit_then_poll_reaches_completed_state`
+- `backend/test_simulator_backend.py::SimulatorApiRouteTests::test_full_submit_then_poll_cycle`
 
 Command:
 
@@ -76,7 +77,33 @@ Command:
 python3 -m unittest discover -s backend -p "test_*.py"
 ```
 
-## 5. Frontend E2E Test Gate
+## 5. Simulator Smoke Gate
+
+Confirm the simulator backend runs the full pipeline with no IBM token:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/jobs/submit \
+  -H 'Content-Type: application/json' \
+  -d '{"backend_name":"qiskit_simulator","braid_word":"s1 s2^-1 s1 s2^-1","shots":512,"optimization_level":1,"closure_method":"trace"}' \
+  | python3 -m json.tool
+```
+
+Expected: `status: "SUBMITTED"`, `job_id` starting with `sim-`, `backend: "qiskit_simulator"`.
+
+Then poll with the returned `job_id`:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/jobs/poll \
+  -H 'Content-Type: application/json' \
+  -d '{"job_id":"<sim-job-id>"}' \
+  | python3 -m json.tool
+```
+
+Expected: `status: "COMPLETED"`, `counts` list, `jones_polynomial` string, `expectation_value` float.
+
+This gate requires no `IBM_QUANTUM_TOKEN` in the environment.
+
+## 6. Frontend E2E Test Gate
 
 Run the Playwright mocked test suite independently to confirm all browser-level flows pass:
 
@@ -97,7 +124,7 @@ To run with a visible browser for debugging:
 npx playwright test --project=mocked --headed
 ```
 
-## 6. Optional Live Hardware Smoke Gate
+## 7. Optional Live Hardware Smoke Gate
 
 This step is optional and should run only when valid hardware credentials are available.
 

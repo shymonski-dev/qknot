@@ -4,6 +4,9 @@ Last validated: 2026-02-27
 Gate status: green
 Validated commit: `7c237ac`
 
+Simulator backend added: 2026-03-03
+Simulator commit: `a74fd27`
+
 ## Latest validation evidence
 
 - Host type check: `npm run lint` passed.
@@ -15,6 +18,7 @@ Validated commit: `7c237ac`
 - Runtime submit route correctly blocks when backend token is not configured: `{"detail":"Backend is missing IBM credentials. Set IBM_QUANTUM_TOKEN before calling runtime routes."}`.
 - Container teardown: `docker compose down` passed.
 - Live hardware smoke run: job `d6h151m48nic73ameq3g` on `ibm_fez` completed with `jones_polynomial: "V(t) = 0.906t^-4 + t^-3 + t^-1"` and `expectation_value: 0.90625`.
+- Simulator backend: full submit→poll cycle completed locally with no IBM token. 39 tests pass in `backend/test_simulator_backend.py`.
 
 ## Phase Seven Required Checks
 
@@ -24,6 +28,14 @@ Validated commit: `7c237ac`
 - [x] Full host test sequence passes: `npm run test:all`.
 - [x] Packaged container flow starts and serves both user interface and application programming interface.
 - [x] Published release runbook exists: `docs/release-runbook.md`.
+
+## Simulator Backend Checks
+
+- [x] `qiskit_simulator` backend routes submit and poll without requiring `IBM_QUANTUM_TOKEN`.
+- [x] IBM backend submit and poll still block correctly when token is absent (regression confirmed in `test_simulator_backend.py`).
+- [x] 39 simulator tests pass: `backend/test_simulator_backend.py` (`SimulatorEngineSubmitTests`, `SimulatorEngineResultTests`, `SimulatorApiRouteTests`).
+- [x] Simulator job IDs use `sim-` prefix for token-free poll routing.
+- [x] Frontend hides Runtime Channel and Runtime Instance fields when `qiskit_simulator` is selected.
 
 ## Optional Live Hardware Smoke Check
 
