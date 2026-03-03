@@ -111,10 +111,11 @@ Run the Playwright mocked test suite independently to confirm all browser-level 
 npm run test:e2e
 ```
 
-Expected result: 11 tests pass across three suites:
+Expected result: 14 tests pass across four suites:
 - `e2e/mocked/pipeline.spec.ts` — Tests 1–3: Trefoil, Figure-Eight, and non-catalog knot happy paths
 - `e2e/mocked/errors.spec.ts` — Tests 4–7: invalid notation, verification failure stub, network abort, server 500
 - `e2e/mocked/jobs.spec.ts` — Tests 8–11: submit → poll → result, cancellation, localStorage resume, poll timeout
+- `e2e/mocked/simulator.spec.ts` — Tests 12–14: full simulator pipeline, runtime fields hidden, fields restore on IBM switch
 
 The Playwright config auto-starts the backend (`IBM_QUANTUM_TOKEN=test`) and the Vite dev server when this command runs, so no manual server startup is required.
 

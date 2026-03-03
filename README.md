@@ -236,7 +236,7 @@ Notes:
 The repository ships a Playwright E2E suite covering the full pipeline from the browser.
 
 ```bash
-npm run test:e2e         # mocked suite (CI-safe, 11 tests, no IBM credentials required)
+npm run test:e2e         # mocked suite (CI-safe, 14 tests, no IBM credentials required)
 npm run test:e2e:live    # live IBM smoke tests (requires IBM_QUANTUM_TOKEN)
 ```
 
@@ -244,6 +244,7 @@ Mocked test coverage:
 - Pipeline happy path: Trefoil, Figure-Eight, and non-catalog knots (Tests 1–3)
 - Error handling: invalid notation, verification failure stub, network abort, server 500 (Tests 4–7)
 - Job execution: submit → poll → result, cancellation, localStorage resume, poll timeout (Tests 8–11)
+- Simulator backend: full pipeline, runtime fields hidden, fields restore on IBM switch (Tests 12–14)
 
 Live smoke tests (Tests L1–L2) call real IBM backends and gate on `IBM_QUANTUM_TOKEN`.
 

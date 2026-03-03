@@ -19,12 +19,13 @@ Simulator commit: `a74fd27`
 - Container teardown: `docker compose down` passed.
 - Live hardware smoke run: job `d6h151m48nic73ameq3g` on `ibm_fez` completed with `jones_polynomial: "V(t) = 0.906t^-4 + t^-3 + t^-1"` and `expectation_value: 0.90625`.
 - Simulator backend: full submit→poll cycle completed locally with no IBM token. 39 tests pass in `backend/test_simulator_backend.py`.
+- Playwright mocked E2E suite: `npm run test:e2e` passed (14 tests: pipeline, error handling, job execution, simulator).
 
 ## Phase Seven Required Checks
 
 - [x] Backend mocked end to end submission and polling check is present: `backend/test_submit_poll_end_to_end.py`.
 - [x] Frontend execution screen submit and poll behavior checks are present: `src/components/__tests__/ExecutionResults.test.tsx`.
-- [x] Playwright E2E mocked suite is present and passes: `npm run test:e2e` (11 tests in `e2e/mocked/`).
+- [x] Playwright E2E mocked suite is present and passes: `npm run test:e2e` (14 tests in `e2e/mocked/`).
 - [x] Full host test sequence passes: `npm run test:all`.
 - [x] Packaged container flow starts and serves both user interface and application programming interface.
 - [x] Published release runbook exists: `docs/release-runbook.md`.
@@ -36,6 +37,7 @@ Simulator commit: `a74fd27`
 - [x] 39 simulator tests pass: `backend/test_simulator_backend.py` (`SimulatorEngineSubmitTests`, `SimulatorEngineResultTests`, `SimulatorApiRouteTests`).
 - [x] Simulator job IDs use `sim-` prefix for token-free poll routing.
 - [x] Frontend hides Runtime Channel and Runtime Instance fields when `qiskit_simulator` is selected.
+- [x] 3 Playwright E2E simulator tests pass: `e2e/mocked/simulator.spec.ts` (Tests 12–14: full pipeline, fields hidden, fields restore on IBM switch).
 
 ## Optional Live Hardware Smoke Check
 
