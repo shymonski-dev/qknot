@@ -194,4 +194,9 @@ export class KnotPage {
   async enterRuntimeInstance(crn: string): Promise<void> {
     await this.runtimeInstanceInput.fill(crn);
   }
+
+  /** Select a target backend from the sidebar hardware dropdown. */
+  async selectTargetBackend(value: string): Promise<void> {
+    await this.page.locator('aside select').selectOption(value);
+  }
 }
