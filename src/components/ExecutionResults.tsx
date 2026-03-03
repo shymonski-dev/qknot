@@ -674,45 +674,51 @@ export default function ExecutionResults({
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <div className="flex items-center gap-2 mb-6">
               <Info className="w-5 h-5 text-emerald-500" />
-              <h3 className="font-medium text-zinc-200">Hardware Runtime</h3>
+              <h3 className="font-medium text-zinc-200">
+                {targetBackend === 'qiskit_simulator' ? 'Simulator Runtime' : 'Hardware Runtime'}
+              </h3>
             </div>
-            
-            <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Runtime Channel
-                </label>
-                <select
-                  value={runtimeChannel}
-                  onChange={(e) => setRuntimeChannel(e.target.value as RuntimeChannelSelection)}
-                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
-                >
-                  <option value="auto">Auto (try platform, cloud, legacy)</option>
-                  <option value="ibm_quantum_platform">ibm_quantum_platform</option>
-                  <option value="ibm_cloud">ibm_cloud</option>
-                  <option value="ibm_quantum">ibm_quantum (legacy)</option>
-                </select>
-                <p className="text-[10px] text-zinc-500 mt-2 leading-tight">
-                  Auto mode improves compatibility across installed qiskit runtime client versions.
-                </p>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-                  Runtime Instance (optional)
-                </label>
-                <input
-                  data-testid="runtime-instance-input"
-                  type="text"
-                  value={runtimeInstance}
-                  onChange={(e) => setRuntimeInstance(e.target.value)}
-                  placeholder="For example hub/group/project or cloud instance identifier"
-                  className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
-                />
-                <p className="text-[10px] text-zinc-500 mt-2 leading-tight">
-                  Some IBM runtime accounts require an instance to access hardware backends.
-                </p>
-              </div>
+            <div className="space-y-5">
+              {targetBackend !== 'qiskit_simulator' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                      Runtime Channel
+                    </label>
+                    <select
+                      value={runtimeChannel}
+                      onChange={(e) => setRuntimeChannel(e.target.value as RuntimeChannelSelection)}
+                      className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
+                    >
+                      <option value="auto">Auto (try platform, cloud, legacy)</option>
+                      <option value="ibm_quantum_platform">ibm_quantum_platform</option>
+                      <option value="ibm_cloud">ibm_cloud</option>
+                      <option value="ibm_quantum">ibm_quantum (legacy)</option>
+                    </select>
+                    <p className="text-[10px] text-zinc-500 mt-2 leading-tight">
+                      Auto mode improves compatibility across installed qiskit runtime client versions.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
+                      Runtime Instance (optional)
+                    </label>
+                    <input
+                      data-testid="runtime-instance-input"
+                      type="text"
+                      value={runtimeInstance}
+                      onChange={(e) => setRuntimeInstance(e.target.value)}
+                      placeholder="For example hub/group/project or cloud instance identifier"
+                      className="w-full bg-[#0a0a0a] border border-zinc-800 rounded-md px-4 py-2.5 text-zinc-200 font-mono text-sm focus:outline-none focus:border-emerald-500/50"
+                    />
+                    <p className="text-[10px] text-zinc-500 mt-2 leading-tight">
+                      Some IBM runtime accounts require an instance to access hardware backends.
+                    </p>
+                  </div>
+                </>
+              )}
               
               <div>
                 <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
@@ -781,7 +787,9 @@ export default function ExecutionResults({
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-emerald-950 font-medium py-2.5 rounded-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isExecuting ? (
-                  <span className="animate-pulse">Submitting and polling IBM Quantum job...</span>
+                  <span className="animate-pulse">
+                    {targetBackend === 'qiskit_simulator' ? 'Running local simulation...' : 'Submitting and polling IBM Quantum job...'}
+                  </span>
                 ) : (
                   <>
                     <Play className="w-4 h-4 fill-current" />

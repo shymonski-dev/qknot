@@ -11,23 +11,31 @@ from pydantic import BaseModel, Field, field_validator
 
 try:
     from .quantum_engine import (
+        SIMULATOR_BACKEND_NAME,
+        _SIM_JOB_ID_PREFIX,
         cancel_knot_experiment,
         compile_dowker_notation,
         generate_knot_circuit_artifact,
+        get_simulator_result,
         list_accessible_backends,
         poll_knot_experiment_result,
         run_knot_experiment,
+        run_simulator_experiment,
         submit_knot_experiment,
         verify_topological_mapping,
     )
 except ImportError:
     from quantum_engine import (
+        SIMULATOR_BACKEND_NAME,
+        _SIM_JOB_ID_PREFIX,
         cancel_knot_experiment,
         compile_dowker_notation,
         generate_knot_circuit_artifact,
+        get_simulator_result,
         list_accessible_backends,
         poll_knot_experiment_result,
         run_knot_experiment,
+        run_simulator_experiment,
         submit_knot_experiment,
         verify_topological_mapping,
     )
@@ -194,18 +202,27 @@ async def run_experiment(req: ExperimentRequest):
 @app.post("/api/jobs/submit")
 async def submit_experiment_job(req: ExperimentRequest):
     try:
-        ibm_token = _resolve_ibm_token()
-        result = await run_in_threadpool(
-            submit_knot_experiment,
-            ibm_token,
-            req.backend_name,
-            req.braid_word,
-            req.shots,
-            req.optimization_level,
-            req.closure_method,
-            req.runtime_channel,
-            req.runtime_instance,
-        )
+        if req.backend_name == SIMULATOR_BACKEND_NAME:
+            result = await run_in_threadpool(
+                run_simulator_experiment,
+                req.braid_word,
+                req.shots,
+                req.optimization_level,
+                req.closure_method,
+            )
+        else:
+            ibm_token = _resolve_ibm_token()
+            result = await run_in_threadpool(
+                submit_knot_experiment,
+                ibm_token,
+                req.backend_name,
+                req.braid_word,
+                req.shots,
+                req.optimization_level,
+                req.closure_method,
+                req.runtime_channel,
+                req.runtime_instance,
+            )
         return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
@@ -216,14 +233,17 @@ async def submit_experiment_job(req: ExperimentRequest):
 @app.post("/api/jobs/poll")
 async def poll_experiment_job(req: PollJobRequest):
     try:
-        ibm_token = _resolve_ibm_token()
-        result = await run_in_threadpool(
-            poll_knot_experiment_result,
-            ibm_token,
-            req.job_id,
-            req.runtime_channel,
-            req.runtime_instance,
-        )
+        if req.job_id.startswith(_SIM_JOB_ID_PREFIX):
+            result = await run_in_threadpool(get_simulator_result, req.job_id)
+        else:
+            ibm_token = _resolve_ibm_token()
+            result = await run_in_threadpool(
+                poll_knot_experiment_result,
+                ibm_token,
+                req.job_id,
+                req.runtime_channel,
+                req.runtime_instance,
+            )
         return result
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))

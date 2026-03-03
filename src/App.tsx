@@ -149,18 +149,21 @@ export default function App() {
               <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Target Hardware</span>
               <Settings className="w-3 h-3 text-zinc-500" />
             </div>
-            <select 
+            <select
               value={targetBackend}
               onChange={(e) => setTargetBackend(e.target.value)}
               className="w-full bg-[#0a0a0a] border border-zinc-800 rounded text-sm text-zinc-200 font-mono p-1.5 focus:outline-none focus:border-emerald-500/50"
             >
+              <option value="qiskit_simulator">qiskit_simulator (Local)</option>
               <option value="ibm_kyiv">ibm_kyiv (127Q)</option>
               <option value="ibm_brisbane">ibm_brisbane (127Q)</option>
               <option value="ibm_osaka">ibm_osaka (127Q)</option>
               <option value="ibm_sherbrooke">ibm_sherbrooke (127Q)</option>
               <option value="least_busy">Auto (Least Busy)</option>
             </select>
-            <div className="text-xs text-zinc-500 mt-2">Heavy-Hex Topology</div>
+            <div className="text-xs text-zinc-500 mt-2">
+              {targetBackend === 'qiskit_simulator' ? 'Local Statevector Sim' : 'Heavy-Hex Topology'}
+            </div>
           </div>
         </div>
       </aside>

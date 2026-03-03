@@ -14,6 +14,10 @@ AUTO_RUNTIME_CHANNELS = ("ibm_quantum_platform", "ibm_cloud", "ibm_quantum")
 DEFAULT_ROOT_OF_UNITY = 5
 DEFAULT_CLOSURE_METHOD = "trace"
 
+SIMULATOR_BACKEND_NAME = "qiskit_simulator"
+_SIM_JOB_ID_PREFIX = "sim-"
+_simulator_result_store: dict[str, dict] = {}
+
 # Catalog entries provide deterministic outputs for known notations.
 _DOWKER_BRAID_CATALOG = {
     (4, 6, 2): {
@@ -996,3 +1000,74 @@ def run_knot_experiment(
         runtime_instance=runtime_instance,
         backend_name_hint=resolve_backend_name(backend),
     )
+
+
+def run_simulator_experiment(
+    braid_word: str,
+    shots: int,
+    optimization_level: int = 3,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
+) -> dict:
+    """
+    Runs a knot evaluation circuit locally using Qiskit's StatevectorSampler.
+    No IBM token or network access required. Results are stored in-process and
+    retrievable via get_simulator_result().
+    """
+    import uuid
+    from qiskit import transpile
+    from qiskit.primitives import StatevectorSampler
+
+    _validate_closure_method(closure_method)
+    braid_analysis = validate_braid_problem_input(braid_word)
+
+    logical_circuit = build_knot_circuit(braid_word=braid_word, closure_method=closure_method)
+    transpiled_circuit = transpile(logical_circuit, optimization_level=optimization_level)
+    circuit_summary = summarize_transpiled_circuit(
+        transpiled_circuit,
+        braid_word=braid_word,
+        optimization_level=optimization_level,
+        closure_method=closure_method,
+    )
+
+    sampler = StatevectorSampler()
+    primitive_result = sampler.run([(transpiled_circuit,)], shots=shots).result()
+    pub_result = primitive_result[0]
+    counts = extract_counts_from_pub_result(pub_result)
+    formatted_counts, expectation = _format_counts_and_expectation(counts)
+    jones_poly = f"V(t) = {expectation:.3f}t^-4 + t^-3 + t^-1"
+
+    job_id = f"{_SIM_JOB_ID_PREFIX}{uuid.uuid4().hex[:12]}"
+
+    _simulator_result_store[job_id] = {
+        "job_id": job_id,
+        "backend": SIMULATOR_BACKEND_NAME,
+        "runtime_channel_used": None,
+        "runtime_instance_used": None,
+        "counts": formatted_counts,
+        "expectation_value": expectation,
+        "jones_polynomial": jones_poly,
+        "status": "COMPLETED",
+    }
+
+    _ = braid_analysis  # used for validation only
+
+    return {
+        "job_id": job_id,
+        "backend": SIMULATOR_BACKEND_NAME,
+        "runtime_channel_used": None,
+        "runtime_instance_used": None,
+        "closure_method": closure_method,
+        "circuit_summary": circuit_summary,
+        "status": "SUBMITTED",
+    }
+
+
+def get_simulator_result(job_id: str) -> dict:
+    """
+    Retrieves a previously computed simulator result by job ID.
+    Raises ValueError if the job ID is not found in the in-process store.
+    """
+    result = _simulator_result_store.get(job_id)
+    if result is None:
+        raise ValueError(f"No simulator result found for job '{job_id}'.")
+    return result
