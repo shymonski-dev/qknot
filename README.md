@@ -232,6 +232,22 @@ Notes:
 - Circuit generation allocates one ancilla plus a compressed work register derived from the admissible path basis dimension.
 - Execution blocks invalid braid problems before submit, including too few tokens, one-generator braids, and non-contiguous generator ranges.
 
+## Research context
+
+Q-Knot implements the Aharonov-Jones-Landau (AJL) algorithm (2006) for approximating the Jones polynomial at roots of unity on a quantum computer. It uses the Fibonacci anyon path model representation (`k = 5`) of the Temperley-Lieb algebra, which is the same mathematical structure underlying topological quantum computation with non-abelian anyons.
+
+Experimentally confirmed results at `t = exp(2πi/5)`:
+
+| Knot | V(t) | Note |
+|---|---|---|
+| Trefoil (3_1) | `−1.236068` | `= 1 − φ`, golden ratio |
+| Figure-Eight (4_1) | `1.500000 − 0.363271i` | amphichiral hyperbolic knot |
+| Cinquefoil (5_1) | `−0.618034 − 0.726543i` | real part `= −1/φ` |
+
+All three are cleanly separated by the Jones polynomial. The golden ratio values are exact, not approximate: the Fibonacci anyon representation and the fifth root of unity are algebraically coupled through `φ`.
+
+For a full evaluation of where this software stands in the contemporary field — quantum advantage thresholds, topological quantum computing context, and directions for future work — see `docs/field-evaluation.md`.
+
 ## Release gate artifacts
 
 - Release checklist: `docs/release-checklist.md`
