@@ -24,6 +24,9 @@ export interface ExperimentResult {
   counts: { name: string; probability: number }[];
   expectation_value: number;
   jones_polynomial: string;
+  jones_value_real?: number | null;
+  jones_value_imag?: number | null;
+  jones_root_of_unity?: number | null;
   status: string;
 }
 

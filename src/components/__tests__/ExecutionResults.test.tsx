@@ -149,6 +149,9 @@ describe('ExecutionResults', () => {
           counts: [{ name: '00', probability: 1 }],
           expectation_value: 1,
           jones_polynomial: 'V(t) = 1.000t^-4 + t^-3 + t^-1',
+          jones_value_real: -1.2360679774997894,
+          jones_value_imag: 0,
+          jones_root_of_unity: 5,
           status: 'COMPLETED',
         } satisfies ExperimentResult),
       );
@@ -227,6 +230,9 @@ describe('ExecutionResults', () => {
           counts: [{ name: '00', probability: 1 }],
           expectation_value: 1,
           jones_polynomial: 'V(t) = 1.000t^-4 + t^-3 + t^-1',
+          jones_value_real: -1.2360679774997894,
+          jones_value_imag: 0,
+          jones_root_of_unity: 5,
           status: 'COMPLETED',
         } satisfies ExperimentResult),
       );
@@ -515,6 +521,9 @@ describe('ExecutionResults', () => {
       counts: [{ name: '00', probability: 1 }],
       expectation_value: 1,
       jones_polynomial: 'V(t) = 1.000t^-4 + t^-3 + t^-1',
+      jones_value_real: -1.2360679774997894,
+      jones_value_imag: 0,
+      jones_root_of_unity: 5,
       status: 'COMPLETED',
     };
 

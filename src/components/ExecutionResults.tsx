@@ -863,7 +863,7 @@ export default function ExecutionResults({
                     {result.jones_polynomial}
                   </div>
                   <p className="text-xs text-zinc-500 font-mono">
-                    Evaluated at root of unity: e^(2*pi*i/5)
+                    Evaluated at root of unity: e^(2*pi*i/{result.jones_root_of_unity ?? 5})
                   </p>
                 </>
               ) : (
