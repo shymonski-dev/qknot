@@ -51,3 +51,25 @@
 - Phase 6: completed (container path uses committed frontend distribution for faster builds, repository ships launcher files for macOS Linux and Windows, and standalone startup works through Python-only launcher flow without local Node requirement).
 - Phase 7: completed (release checklist and runbook are published, mocked end to end submit poll backend check is added, Playwright E2E suite added with 11 mocked tests and 2 live smoke tests, and live hardware smoke run completed against ibm_fez with Jones polynomial result returned).
 - Phase 8: completed (generator matrix formula corrected to ρ(σᵢ) = a·I + a⁻¹·P — unitary and invertible; AJL tests pass with no skips; standalone smoke confirms jones_value_real is non-null; 119 backend tests green).
+
+## Phase 9: Research Extensions
+
+### Phase 9a: Larger Knots
+- Add `database_knotinfo==0.6` dependency (KnotInfo database, 2,979 knots up to 13+ crossings).
+- Add three functions to `quantum_engine.py`: `_parse_knotinfo_braid_notation`, `_parse_knotinfo_dt_key`, `_load_knotinfo_catalog`.
+- Update `compile_dowker_notation` to a 3-tier lookup: hardcoded catalog → KnotInfo → deterministic fallback.
+- Add `KnotInfoCatalogTests` to `test_knot_ingestion.py`; add cross-representation Jones test to `test_ajl_invariant.py`.
+- The quantum engine (path model basis, circuit construction) is already general for any strand count — no changes needed there.
+- Hilbert space dimensions: 3 strands→3, 6 strands→13, 8 strands→34; circuit grows to ~6-7 qubits for 12-crossing knots.
+- Status: plan complete, implementation pending.
+
+### Phase 9b: Error Mitigation
+- Zero-noise extrapolation or probabilistic error cancellation on the quantum path.
+- Blocked on Phase 9a (only interesting on non-trivial circuits).
+- Status: not started.
+
+### Phase 9c: HOMFLY-PT Polynomial
+- Stitch Jones evaluations at multiple roots of unity into the two-variable HOMFLY-PT polynomial.
+- No settled quantum algorithm exists — genuine research frontier.
+- Blocked on Phase 9a and 9b.
+- Status: not started.
