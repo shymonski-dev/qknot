@@ -99,7 +99,7 @@ curl -s -X POST http://127.0.0.1:8000/api/jobs/poll \
   | python3 -m json.tool
 ```
 
-Expected: `status: "COMPLETED"`, `counts` list, `jones_polynomial` string, `expectation_value` float.
+Expected: `status: "COMPLETED"`, `counts` list, `expectation_value` float, and `jones_polynomial` in root-of-unity format (`V(t) = <value> at t = exp(2*pi*i/k)`). Responses may include `jones_value_real`, `jones_value_imag`, and `jones_root_of_unity` when evaluation dependencies are present.
 
 This gate requires no `IBM_QUANTUM_TOKEN` in the environment.
 

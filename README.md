@@ -1,6 +1,6 @@
 # Q-Knot
 
-Front end plus Python back end for submitting a simplified knot-evaluation circuit to IBM Quantum hardware.
+Front end plus Python back end for submitting a path-model knot-evaluation circuit to IBM Quantum hardware.
 
 ## Current delivery status
 
@@ -8,6 +8,7 @@ Front end plus Python back end for submitting a simplified knot-evaluation circu
 - Qiskit simulator backend added: full pipeline runs locally with no IBM token required.
 - Release gate status is green for all required checks including the Playwright E2E suite.
 - Live hardware smoke run completed against `ibm_fez` (Trefoil, 128 shots, job `d6h151m48nic73ameq3g`, Jones polynomial returned).
+- Topological invariant evaluation now uses an Aharonov Jones Landau style path model implementation with root-of-unity output formatting.
 - Latest validated release gate commit: `7c237ac`.
 
 ## What runs where
@@ -218,11 +219,17 @@ Notes:
 - Generation returns backend computed circuit metadata: depth, width, operation counts, and a deterministic signature.
 - The execution submit request includes closure method and compares the generated signature with the submitted job circuit signature before polling.
 
+## Topological invariant evaluation behavior
+
+- The backend computes Jones values through an Aharonov Jones Landau style path model representation.
+- Output uses root-of-unity evaluation formatting: `V(t) = <value> at t = exp(2*pi*i/k)`.
+- Completed result payloads include `jones_value_real`, `jones_value_imag`, and `jones_root_of_unity` when evaluation dependencies are available.
+
 ## Expanded braid support behavior
 
 - Braid parsing now accepts tokens in the form `sN` and `sN^-1` for any positive integer `N`.
 - Verification checks for contiguous generator ranges and reports missing generators in computed evidence.
-- Circuit generation scales qubit width with the highest generator index in the braid word.
+- Circuit generation allocates one ancilla plus a compressed work register derived from the admissible path basis dimension.
 - Execution blocks invalid braid problems before submit, including too few tokens, one-generator braids, and non-contiguous generator ranges.
 
 ## Release gate artifacts
@@ -257,13 +264,14 @@ python3 -m unittest discover -s backend -p "test_*.py"
 ```
 
 Test files:
-- `test_simulator_backend.py` — 39 tests covering `run_simulator_experiment`, `get_simulator_result`, HTTP routing, IBM regression, and a full submit→poll HTTP cycle
+- `test_simulator_backend.py` — covers `run_simulator_experiment`, `get_simulator_result`, HTTP routing, IBM regression, and a full submit→poll HTTP cycle
 - `test_submit_poll_end_to_end.py` — mocked IBM submit and poll end-to-end
 - `test_api_main.py` — Pydantic model validation and API handler routing
 - `test_braid_parser.py`, `test_braid_validation.py` — braid word parsing and validation
 - `test_circuit_generation.py` — circuit build and transpile
 - `test_knot_ingestion.py`, `test_knot_verification.py` — Dowker notation and topological verification
 - `test_poll_knot_experiment.py`, `test_quantum_engine_helpers.py` — job polling and engine helpers
+- `test_ajl_invariant.py` — path model invariant and output formatting checks
 
 ## Development checks
 

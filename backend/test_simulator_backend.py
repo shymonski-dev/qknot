@@ -62,9 +62,9 @@ class SimulatorEngineSubmitTests(unittest.TestCase):
             self.assertIn(key, summary)
 
     def test_circuit_summary_qubit_count_matches_braid(self):
-        # Trefoil uses s1, s2 → strand_count=3 → 3+1=4 qubits
+        # Trefoil uses a compressed path model register plus one ancilla.
         result = quantum_engine.run_simulator_experiment(TREFOIL_BRAID, shots=256)
-        self.assertGreaterEqual(result["circuit_summary"]["num_qubits"], 4)
+        self.assertGreaterEqual(result["circuit_summary"]["num_qubits"], 3)
 
     def test_stores_result_in_result_store(self):
         result = quantum_engine.run_simulator_experiment(TREFOIL_BRAID, shots=256)

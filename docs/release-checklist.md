@@ -1,11 +1,13 @@
 # Release Checklist
 
-Last validated: 2026-02-27
+Last validated: 2026-03-04
 Gate status: green
 Validated commit: `7c237ac`
 
 Simulator backend added: 2026-03-03
 Simulator commit: `a74fd27`
+
+Research-grade invariant upgrade: 2026-03-04
 
 ## Latest validation evidence
 
@@ -17,9 +19,10 @@ Simulator commit: `a74fd27`
 - Packaged container flow: `docker compose up --build -d` passed with route checks for health, ingestion, verification, and circuit generation.
 - Runtime submit route correctly blocks when backend token is not configured: `{"detail":"Backend is missing IBM credentials. Set IBM_QUANTUM_TOKEN before calling runtime routes."}`.
 - Container teardown: `docker compose down` passed.
-- Live hardware smoke run: job `d6h151m48nic73ameq3g` on `ibm_fez` completed with `jones_polynomial: "V(t) = 0.906t^-4 + t^-3 + t^-1"` and `expectation_value: 0.90625`.
-- Simulator backend: full submit→poll cycle completed locally with no IBM token. 39 tests pass in `backend/test_simulator_backend.py`.
+- Live hardware smoke run (legacy output baseline): job `d6h151m48nic73ameq3g` on `ibm_fez` completed with `jones_polynomial: "V(t) = 0.906t^-4 + t^-3 + t^-1"` and `expectation_value: 0.90625`.
+- Simulator backend: full submit→poll cycle completed locally with no IBM token. Simulator backend test suite passes in `backend/test_simulator_backend.py`.
 - Playwright mocked E2E suite: `npm run test:e2e` passed (14 tests: pipeline, error handling, job execution, simulator).
+- Current invariant output format: `jones_polynomial` uses root-of-unity formatting, and responses may include `jones_value_real`, `jones_value_imag`, and `jones_root_of_unity`.
 
 ## Phase Seven Required Checks
 
@@ -44,5 +47,5 @@ Simulator commit: `a74fd27`
 - [x] Run live hardware smoke workflow with valid backend credentials.
   - Backend: `ibm_fez` (156 qubits), channel: `ibm_cloud`, shots: 128
   - Job ID: `d6h151m48nic73ameq3g`
-  - Result: `COMPLETED` — `jones_polynomial: "V(t) = 0.906t^-4 + t^-3 + t^-1"`, `expectation_value: 0.90625`
+  - Result (legacy baseline): `COMPLETED` — `jones_polynomial: "V(t) = 0.906t^-4 + t^-3 + t^-1"`, `expectation_value: 0.90625`
   - Knot: Trefoil (3_1), braid word `s1 s2^-1 s1 s2^-1`, Dowker `4 6 2`

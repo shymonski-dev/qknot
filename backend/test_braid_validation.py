@@ -15,7 +15,7 @@ class BraidProblemValidationTests(unittest.TestCase):
         self.assertEqual(analysis["token_count"], 5)
         self.assertEqual(analysis["generator_counts"], {"s1": 2, "s2": 2, "s3": 1})
         self.assertEqual(analysis["strand_count"], 4)
-        self.assertEqual(analysis["required_qubits"], 5)
+        self.assertEqual(analysis["required_qubits"], 4)
         self.assertTrue(analysis["is_contiguous_generator_range"])
 
     def test_rejects_braid_with_fewer_than_three_tokens(self):

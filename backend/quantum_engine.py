@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,6 +18,7 @@ DEFAULT_CLOSURE_METHOD = "trace"
 SIMULATOR_BACKEND_NAME = "qiskit_simulator"
 _SIM_JOB_ID_PREFIX = "sim-"
 _simulator_result_store: dict[str, dict] = {}
+_runtime_job_metadata_store: dict[str, dict] = {}
 
 # Catalog entries provide deterministic outputs for known notations.
 _DOWKER_BRAID_CATALOG = {
@@ -115,7 +117,7 @@ def analyze_braid_word(braid_word: str):
         "missing_generators": [f"s{generator_index}" for generator_index in missing_generator_indices],
         "is_contiguous_generator_range": is_contiguous_generator_range,
         "strand_connectivity": strand_connectivity,
-        "required_qubits": strand_count + 1,  # one ancilla plus one qubit per strand
+        "required_qubits": _required_ajl_qubits(strand_count, DEFAULT_ROOT_OF_UNITY),
     }
 
 
@@ -278,12 +280,211 @@ def _validate_closure_method(closure_method: str):
         raise ValueError("Closure method must be either 'trace' or 'plat'.")
 
 
+@lru_cache(maxsize=128)
+def _path_model_basis(strand_count: int, root_of_unity: int) -> tuple[tuple[int, ...], ...]:
+    if strand_count < 2:
+        raise ValueError("Braid problems require at least two strands.")
+    if root_of_unity < 5:
+        raise ValueError("Root of unity must be at least 5 for stable path model evaluation.")
+
+    basis = [(1,)]
+    max_vertex = root_of_unity - 1
+
+    for _ in range(strand_count):
+        next_basis = []
+        for path in basis:
+            current_vertex = path[-1]
+            lower_vertex = current_vertex - 1
+            upper_vertex = current_vertex + 1
+            if lower_vertex >= 1:
+                next_basis.append(path + (lower_vertex,))
+            if upper_vertex <= max_vertex:
+                next_basis.append(path + (upper_vertex,))
+        basis = next_basis
+
+    if not basis:
+        raise ValueError(
+            "No admissible path basis exists for the requested strand count and root of unity."
+        )
+
+    return tuple(basis)
+
+
+def _build_path_lambda_values(root_of_unity: int):
+    import numpy as np
+
+    lambda_values = np.zeros(root_of_unity, dtype=float)
+    for vertex in range(1, root_of_unity):
+        lambda_values[vertex] = float(np.sin(np.pi * vertex / root_of_unity))
+    return lambda_values
+
+
+def _build_temperley_lieb_projector(path_basis: tuple[tuple[int, ...], ...], lambda_values, generator: int):
+    import numpy as np
+
+    dimension = len(path_basis)
+    strand_count = len(path_basis[0]) - 1
+    if generator < 1 or generator >= strand_count:
+        raise ValueError(f"Unsupported braid generator index: s{generator}")
+
+    projector = np.zeros((dimension, dimension), dtype=complex)
+    grouped_indices: dict[tuple[int, ...], list[int]] = {}
+
+    for basis_index, path in enumerate(path_basis):
+        outside_vertices = path[:generator] + path[generator + 1 :]
+        grouped_indices.setdefault(outside_vertices, []).append(basis_index)
+
+    for indices in grouped_indices.values():
+        reference_path = path_basis[indices[0]]
+        left_vertex = reference_path[generator - 1]
+        right_vertex = reference_path[generator + 1]
+        if left_vertex != right_vertex:
+            continue
+
+        normalization = lambda_values[left_vertex]
+        if normalization <= 0:
+            raise ValueError("Invalid path model normalization encountered.")
+
+        for row_index in indices:
+            row_middle_vertex = path_basis[row_index][generator]
+            for column_index in indices:
+                column_middle_vertex = path_basis[column_index][generator]
+                coefficient = float(
+                    np.sqrt(lambda_values[row_middle_vertex] * lambda_values[column_middle_vertex])
+                    / normalization
+                )
+                projector[row_index, column_index] = coefficient
+
+    return projector
+
+
+def _build_ajl_context(strand_count: int, root_of_unity: int):
+    import numpy as np
+
+    path_basis = _path_model_basis(strand_count, root_of_unity)
+    dimension = len(path_basis)
+    work_qubits = max(1, (dimension - 1).bit_length())
+
+    lambda_values = _build_path_lambda_values(root_of_unity)
+    path_weights = np.array([lambda_values[path[-1]] for path in path_basis], dtype=float)
+    markov_normalizer = float(path_weights.sum())
+    if markov_normalizer <= 0:
+        raise ValueError("Invalid Markov trace normalization encountered.")
+
+    tl_projectors = {
+        generator: _build_temperley_lieb_projector(path_basis, lambda_values, generator)
+        for generator in range(1, strand_count)
+    }
+
+    a_parameter = 1j * np.exp(-1j * np.pi / (2 * root_of_unity))
+    d_parameter = float(2 * np.cos(np.pi / root_of_unity))
+
+    return {
+        "path_basis": path_basis,
+        "representation_dimension": dimension,
+        "work_qubits": work_qubits,
+        "path_weights": path_weights,
+        "markov_normalizer": markov_normalizer,
+        "tl_projectors": tl_projectors,
+        "a_parameter": complex(a_parameter),
+        "d_parameter": d_parameter,
+        "strand_count": strand_count,
+        "root_of_unity": root_of_unity,
+    }
+
+
+def _required_ajl_qubits(strand_count: int, root_of_unity: int) -> int:
+    path_basis = _path_model_basis(strand_count, root_of_unity)
+    work_qubits = max(1, (len(path_basis) - 1).bit_length())
+    return 1 + work_qubits
+
+
+def _compute_generator_matrix(ajl_context: dict, generator: int, is_inverse: bool):
+    import numpy as np
+
+    representation_dimension = ajl_context["representation_dimension"]
+    identity = np.eye(representation_dimension, dtype=complex)
+
+    projector = ajl_context["tl_projectors"].get(generator)
+    if projector is None:
+        raise ValueError(f"Unsupported braid generator index: s{generator}")
+
+    temperley_lieb_generator = ajl_context["d_parameter"] * projector
+    a_parameter = ajl_context["a_parameter"]
+    a_inverse = 1 / a_parameter
+
+    if is_inverse:
+        return a_inverse * identity + a_parameter * temperley_lieb_generator
+
+    return a_parameter * identity + a_inverse * temperley_lieb_generator
+
+
+def _compute_braid_representation_matrix(parsed_braid: list[tuple[int, bool]], ajl_context: dict):
+    import numpy as np
+
+    representation_dimension = ajl_context["representation_dimension"]
+    matrix = np.eye(representation_dimension, dtype=complex)
+
+    for generator, is_inverse in parsed_braid:
+        generator_matrix = _compute_generator_matrix(ajl_context, generator, is_inverse)
+        matrix = generator_matrix @ matrix
+
+    return matrix
+
+
+def evaluate_jones_at_root_of_unity(
+    braid_word: str,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
+) -> complex:
+    import numpy as np
+
+    _validate_closure_method(closure_method)
+    braid_analysis = validate_braid_problem_input(braid_word)
+    ajl_context = _build_ajl_context(braid_analysis["strand_count"], root_of_unity)
+
+    representation_matrix = _compute_braid_representation_matrix(
+        braid_analysis["parsed_braid"],
+        ajl_context,
+    )
+
+    weighted_trace = complex(
+        np.dot(
+            ajl_context["path_weights"],
+            np.diag(representation_matrix),
+        )
+        / ajl_context["markov_normalizer"]
+    )
+
+    bracket_value = (ajl_context["d_parameter"] ** (braid_analysis["strand_count"] - 1)) * weighted_trace
+
+    # The current invariant evaluation path uses the Markov trace closure for both request modes.
+    _ = closure_method
+
+    jones_value = ((-ajl_context["a_parameter"]) ** (-3 * braid_analysis["net_writhe"])) * bracket_value
+    return complex(jones_value)
+
+
+def _format_complex_value(value: complex, precision: int = 6) -> str:
+    real_part = float(value.real)
+    imaginary_part = float(value.imag)
+
+    if abs(imaginary_part) < 10 ** (-(precision + 1)):
+        return f"{real_part:.{precision}f}"
+
+    sign = "+" if imaginary_part >= 0 else "-"
+    return f"{real_part:.{precision}f} {sign} {abs(imaginary_part):.{precision}f}i"
+
+
+def _format_jones_output(value: complex, root_of_unity: int) -> str:
+    return f"V(t) = {_format_complex_value(value)} at t = exp(2*pi*i/{root_of_unity})"
+
+
 def build_knot_circuit(
     braid_word: str,
     closure_method: str = DEFAULT_CLOSURE_METHOD,
     root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
 ):
-    import numpy as np
     from qiskit import QuantumCircuit
 
     _validate_closure_method(closure_method)
@@ -291,25 +492,22 @@ def build_knot_circuit(
     parsed_braid = braid_analysis["parsed_braid"]
     strand_count = braid_analysis["strand_count"]
 
-    # One ancilla plus one qubit per strand.
-    qc = QuantumCircuit(strand_count + 1, 1)
-    theta = 2 * np.pi / root_of_unity
+    ajl_context = _build_ajl_context(strand_count, root_of_unity)
+    work_qubits = ajl_context["work_qubits"]
 
-    if closure_method == "trace":
-        qc.h(0)
-    else:
-        qc.x(0)
-        qc.h(0)
+    qc = QuantumCircuit(1 + work_qubits, 1)
+    work_register = list(range(1, 1 + work_qubits))
+
+    qc.h(0)
 
     for generator, is_inverse in parsed_braid:
         apply_braid_generator(
             qc,
             ancilla=0,
-            data_a=generator,
-            data_b=generator + 1,
+            work_register=work_register,
             generator=generator,
             is_inverse=is_inverse,
-            theta=theta,
+            ajl_context=ajl_context,
         )
 
     if closure_method == "trace":
@@ -728,12 +926,34 @@ def format_completed_job_result(
     channel_used: str | None,
     runtime_instance: str | None,
     backend_name_hint: str | None = None,
+    braid_word: str | None = None,
+    closure_method: str = DEFAULT_CLOSURE_METHOD,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
 ):
     result = job.result()
     pub_result = result[0]
     counts = extract_counts_from_pub_result(pub_result)
     formatted_counts, expectation = _format_counts_and_expectation(counts)
-    jones_poly = f"V(t) = {expectation:.3f}t^-4 + t^-3 + t^-1"
+
+    jones_value = None
+    if braid_word:
+        try:
+            jones_value = evaluate_jones_at_root_of_unity(
+                braid_word=braid_word,
+                root_of_unity=root_of_unity,
+                closure_method=closure_method,
+            )
+            jones_poly = _format_jones_output(jones_value, root_of_unity)
+        except Exception:
+            jones_poly = (
+                "V(t) = unavailable: path model evaluation failed; "
+                f"ancilla expectation={expectation:.6f}"
+            )
+    else:
+        jones_poly = (
+            "V(t) = unavailable: missing braid metadata for path model evaluation; "
+            f"ancilla expectation={expectation:.6f}"
+        )
 
     return {
         "job_id": resolve_job_id(job),
@@ -743,6 +963,9 @@ def format_completed_job_result(
         "counts": formatted_counts,
         "expectation_value": expectation,
         "jones_polynomial": jones_poly,
+        "jones_value_real": float(jones_value.real) if jones_value is not None else None,
+        "jones_value_imag": float(jones_value.imag) if jones_value is not None else None,
+        "jones_root_of_unity": root_of_unity,
         "status": "COMPLETED",
     }
 
@@ -798,34 +1021,32 @@ def _build_and_submit_knot_job(
 def apply_braid_generator(
     qc: QuantumCircuit,
     ancilla: int,
-    data_a: int,
-    data_b: int,
+    work_register: list[int],
     generator: int,
     is_inverse: bool,
-    theta: float,
+    ajl_context: dict,
 ):
     """
-    Apply a simplified controlled unitary for a braid generator.
-    Odd generators use one entangling pattern and even generators use an alternate pattern.
+    Apply a controlled braid generator using the path model representation.
     """
+    import numpy as np
+    from qiskit.circuit.library import UnitaryGate
+
     if generator < 1:
         raise ValueError(f"Unsupported braid generator index: s{generator}")
 
-    phase = -theta if is_inverse else theta
+    generator_matrix = _compute_generator_matrix(ajl_context, generator, is_inverse)
 
-    if generator % 2 == 1:
-        qc.cx(data_a, data_b)
-        qc.cp(phase, ancilla, data_a)
-        qc.cx(data_a, data_b)
-        return
+    work_qubit_count = len(work_register)
+    full_dimension = 1 << work_qubit_count
+    representation_dimension = ajl_context["representation_dimension"]
 
-    if generator % 2 == 0:
-        qc.h(data_a)
-        qc.cx(data_b, data_a)
-        qc.cp(phase, ancilla, data_b)
-        qc.cx(data_b, data_a)
-        qc.h(data_a)
-        return
+    embedded_unitary = np.eye(full_dimension, dtype=complex)
+    embedded_unitary[:representation_dimension, :representation_dimension] = generator_matrix
+
+    gate_label = f"s{generator}{'^-1' if is_inverse else ''}"
+    controlled_gate = UnitaryGate(embedded_unitary, label=gate_label).control(1)
+    qc.append(controlled_gate, [ancilla, *work_register])
 
 
 def submit_knot_experiment(
@@ -849,12 +1070,19 @@ def submit_knot_experiment(
         runtime_instance=runtime_instance,
     )
 
+    job_id = resolve_job_id(job)
+    _runtime_job_metadata_store[job_id] = {
+        "braid_word": braid_word,
+        "closure_method": closure_method,
+        "root_of_unity": DEFAULT_ROOT_OF_UNITY,
+    }
+
     status = resolve_job_status(job)
     if status == "UNKNOWN":
         status = "SUBMITTED"
 
     return {
-        "job_id": resolve_job_id(job),
+        "job_id": job_id,
         "backend": resolve_backend_name(backend),
         "runtime_channel_used": channel_used,
         "runtime_instance_used": runtime_instance,
@@ -884,13 +1112,14 @@ def poll_knot_experiment_result(
     except Exception as exc:
         raise ValueError(f"Failed to retrieve runtime job '{job_id}': {exc}") from exc
 
+    resolved_job_id = resolve_job_id(job)
     status = resolve_job_status(job)
     backend_name = resolve_job_backend_name(job)
 
     if status in FAILED_JOB_STATUSES:
         error_message = resolve_job_error_message(job)
         response = {
-            "job_id": resolve_job_id(job),
+            "job_id": resolved_job_id,
             "backend": backend_name or "unknown",
             "runtime_channel_used": channel_used,
             "runtime_instance_used": runtime_instance,
@@ -902,24 +1131,31 @@ def poll_knot_experiment_result(
 
     if status in IN_PROGRESS_JOB_STATUSES:
         return {
-            "job_id": resolve_job_id(job),
+            "job_id": resolved_job_id,
             "backend": backend_name or "unknown",
             "runtime_channel_used": channel_used,
             "runtime_instance_used": runtime_instance,
             "status": status,
         }
 
+    runtime_metadata = _runtime_job_metadata_store.get(resolved_job_id, {})
+
     try:
-        return format_completed_job_result(
+        completed_result = format_completed_job_result(
             job=job,
             channel_used=channel_used,
             runtime_instance=runtime_instance,
             backend_name_hint=backend_name,
+            braid_word=runtime_metadata.get("braid_word"),
+            closure_method=runtime_metadata.get("closure_method", DEFAULT_CLOSURE_METHOD),
+            root_of_unity=runtime_metadata.get("root_of_unity", DEFAULT_ROOT_OF_UNITY),
         )
+        _runtime_job_metadata_store.pop(resolved_job_id, None)
+        return completed_result
     except Exception as exc:
         if status and status not in COMPLETED_JOB_STATUSES:
             return {
-                "job_id": resolve_job_id(job),
+                "job_id": resolved_job_id,
                 "backend": backend_name or "unknown",
                 "runtime_channel_used": channel_used,
                 "runtime_instance_used": runtime_instance,
@@ -999,6 +1235,9 @@ def run_knot_experiment(
         channel_used=channel_used,
         runtime_instance=runtime_instance,
         backend_name_hint=resolve_backend_name(backend),
+        braid_word=braid_word,
+        closure_method=closure_method,
+        root_of_unity=DEFAULT_ROOT_OF_UNITY,
     )
 
 
@@ -1034,7 +1273,20 @@ def run_simulator_experiment(
     pub_result = primitive_result[0]
     counts = extract_counts_from_pub_result(pub_result)
     formatted_counts, expectation = _format_counts_and_expectation(counts)
-    jones_poly = f"V(t) = {expectation:.3f}t^-4 + t^-3 + t^-1"
+
+    jones_value = None
+    try:
+        jones_value = evaluate_jones_at_root_of_unity(
+            braid_word=braid_word,
+            root_of_unity=DEFAULT_ROOT_OF_UNITY,
+            closure_method=closure_method,
+        )
+        jones_poly = _format_jones_output(jones_value, DEFAULT_ROOT_OF_UNITY)
+    except Exception:
+        jones_poly = (
+            "V(t) = unavailable: path model evaluation failed; "
+            f"ancilla expectation={expectation:.6f}"
+        )
 
     job_id = f"{_SIM_JOB_ID_PREFIX}{uuid.uuid4().hex[:12]}"
 
@@ -1046,6 +1298,9 @@ def run_simulator_experiment(
         "counts": formatted_counts,
         "expectation_value": expectation,
         "jones_polynomial": jones_poly,
+        "jones_value_real": float(jones_value.real) if jones_value is not None else None,
+        "jones_value_imag": float(jones_value.imag) if jones_value is not None else None,
+        "jones_root_of_unity": DEFAULT_ROOT_OF_UNITY,
         "status": "COMPLETED",
     }
 

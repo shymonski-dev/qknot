@@ -36,6 +36,12 @@
 - Add optional live hardware smoke run workflow.
 - Exit criteria: release checklist is green with published runbook.
 
+## Phase 8: Research-grade Invariant Engine
+- Replace parity-based braid gate templates with a path model representation implementation.
+- Replace heuristic Jones output with root-of-unity invariant evaluation output.
+- Preserve submit and poll compatibility by carrying braid metadata into completed result formatting.
+- Exit criteria: invariant evaluator and output format are wired into simulator and runtime result paths with test coverage.
+
 ## Status
 - Phase 1: completed (unsupported Node versions now fail fast and global front end test cleanup is centralized).
 - Phase 2: completed (real knot ingestion route, validation, user interface wiring, and user interface tests are in working tree).
@@ -44,3 +50,4 @@
 - Phase 5: completed (parser accepts expanded braid tokens, verification handles multi-strand connectivity checks, and execution blocks invalid non-contiguous braid problems before submit).
 - Phase 6: completed (container path uses committed frontend distribution for faster builds, repository ships launcher files for macOS Linux and Windows, and standalone startup works through Python-only launcher flow without local Node requirement).
 - Phase 7: completed (release checklist and runbook are published, mocked end to end submit poll backend check is added, Playwright E2E suite added with 11 mocked tests and 2 live smoke tests, and live hardware smoke run completed against ibm_fez with Jones polynomial result returned).
+- Phase 8: in progress (path model circuit construction and root-of-unity invariant output are implemented; full dependency-available validation on target runtime environment is pending).
