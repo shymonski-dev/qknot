@@ -412,6 +412,16 @@ class SimulatorApiRouteTests(unittest.TestCase):
         self.assertIsInstance(poll_body["expectation_value"], float)
         total_prob = sum(item["probability"] for item in poll_body["counts"])
         self.assertAlmostEqual(total_prob, 1.0, places=5)
+        self.assertIsNotNone(
+            poll_body.get("jones_value_real"),
+            "jones_value_real must be non-null — AJL evaluation must have run",
+        )
+        self.assertIsInstance(poll_body["jones_value_real"], float)
+        self.assertNotIn(
+            "unavailable",
+            poll_body.get("jones_polynomial", ""),
+            "jones_polynomial must not contain the fallback string",
+        )
 
 
 if __name__ == "__main__":

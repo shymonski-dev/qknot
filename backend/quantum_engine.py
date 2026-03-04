@@ -409,14 +409,16 @@ def _compute_generator_matrix(ajl_context: dict, generator: int, is_inverse: boo
     if projector is None:
         raise ValueError(f"Unsupported braid generator index: s{generator}")
 
-    temperley_lieb_generator = ajl_context["d_parameter"] * projector
+    # The TL generator satisfies P^2 = d*P. The braid relation requires
+    # a^2 + a^{-2} = -d, which holds for a = i*exp(-i*pi/(2k)).
+    # Correct formula: rho(sigma_i) = a*I + a^{-1}*P  (unitary, inverse of rho(sigma_i^{-1})).
     a_parameter = ajl_context["a_parameter"]
     a_inverse = 1 / a_parameter
 
     if is_inverse:
-        return a_inverse * identity + a_parameter * temperley_lieb_generator
+        return a_inverse * identity + a_parameter * projector
 
-    return a_parameter * identity + a_inverse * temperley_lieb_generator
+    return a_parameter * identity + a_inverse * projector
 
 
 def _compute_braid_representation_matrix(parsed_braid: list[tuple[int, bool]], ajl_context: dict):
@@ -944,7 +946,16 @@ def format_completed_job_result(
                 closure_method=closure_method,
             )
             jones_poly = _format_jones_output(jones_value, root_of_unity)
-        except Exception:
+        except ValueError as exc:
+            import sys
+            print(f"[Q-Knot] Jones evaluation failed (ValueError): {exc}", file=sys.stderr)
+            jones_poly = (
+                "V(t) = unavailable: path model evaluation failed; "
+                f"ancilla expectation={expectation:.6f}"
+            )
+        except Exception as exc:
+            import sys
+            print(f"[Q-Knot] Jones evaluation failed (unexpected): {exc!r}", file=sys.stderr)
             jones_poly = (
                 "V(t) = unavailable: path model evaluation failed; "
                 f"ancilla expectation={expectation:.6f}"
@@ -1282,7 +1293,16 @@ def run_simulator_experiment(
             closure_method=closure_method,
         )
         jones_poly = _format_jones_output(jones_value, DEFAULT_ROOT_OF_UNITY)
-    except Exception:
+    except ValueError as exc:
+        import sys
+        print(f"[Q-Knot] Jones evaluation failed (ValueError): {exc}", file=sys.stderr)
+        jones_poly = (
+            "V(t) = unavailable: path model evaluation failed; "
+            f"ancilla expectation={expectation:.6f}"
+        )
+    except Exception as exc:
+        import sys
+        print(f"[Q-Knot] Jones evaluation failed (unexpected): {exc!r}", file=sys.stderr)
         jones_poly = (
             "V(t) = unavailable: path model evaluation failed; "
             f"ancilla expectation={expectation:.6f}"

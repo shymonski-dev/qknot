@@ -4,12 +4,12 @@ Front end plus Python back end for submitting a path-model knot-evaluation circu
 
 ## Current delivery status
 
-- Phases one through seven are complete.
+- All eight phases are complete.
 - Qiskit simulator backend added: full pipeline runs locally with no IBM token required.
 - Release gate status is green for all required checks including the Playwright E2E suite.
 - Live hardware smoke run completed against `ibm_fez` (Trefoil, 128 shots, job `d6h151m48nic73ameq3g`, Jones polynomial returned).
-- Topological invariant evaluation now uses an Aharonov Jones Landau style path model implementation with root-of-unity output formatting.
-- Latest validated release gate commit: `7c237ac`.
+- Topological invariant evaluation uses a correct Aharonov Jones Landau path model implementation: braid generators are unitary (`ρ(σᵢ) = a·I + a⁻¹·Pᵢ`), and Jones values are confirmed non-null through the full simulator pipeline.
+- Latest validated release gate commit: `37fc97c`.
 
 ## What runs where
 

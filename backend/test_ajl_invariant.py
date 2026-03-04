@@ -13,6 +13,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import quantum_engine
 
 
+class NumpyAvailabilityTest(unittest.TestCase):
+    def test_numpy_is_importable(self):
+        """Phase 8 gate: numpy must be present for AJL invariant evaluation."""
+        try:
+            import numpy  # noqa: F401
+        except ModuleNotFoundError:
+            self.fail("numpy is not installed — AJL invariant engine cannot run")
+
+
 @unittest.skipIf(np is None, "numpy is required for Aharonov Jones Landau invariant tests")
 class AharonovJonesLandauInvariantTests(unittest.TestCase):
     def test_returns_complex_value_for_valid_braid(self):

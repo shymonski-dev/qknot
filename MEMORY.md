@@ -50,4 +50,4 @@
 - Phase 5: completed (parser accepts expanded braid tokens, verification handles multi-strand connectivity checks, and execution blocks invalid non-contiguous braid problems before submit).
 - Phase 6: completed (container path uses committed frontend distribution for faster builds, repository ships launcher files for macOS Linux and Windows, and standalone startup works through Python-only launcher flow without local Node requirement).
 - Phase 7: completed (release checklist and runbook are published, mocked end to end submit poll backend check is added, Playwright E2E suite added with 11 mocked tests and 2 live smoke tests, and live hardware smoke run completed against ibm_fez with Jones polynomial result returned).
-- Phase 8: in progress (path model circuit construction and root-of-unity invariant output are implemented; full dependency-available validation on target runtime environment is pending).
+- Phase 8: completed (generator matrix formula corrected to ρ(σᵢ) = a·I + a⁻¹·P — unitary and invertible; AJL tests pass with no skips; standalone smoke confirms jones_value_real is non-null; 119 backend tests green).

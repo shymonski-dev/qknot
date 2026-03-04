@@ -161,3 +161,37 @@ IBM_QUANTUM_TOKEN="<your-token>" npm run test:e2e:live
 ```
 
 Tests L1–L2 list available backends and submit a Trefoil job against the first available backend, then cancel it before polling completes.
+
+## 8. Phase 8 Gate — Path-Model Invariant Engine
+
+Confirm the AJL invariant engine runs (no skips, no fallback) in the backend suite and in standalone smoke.
+
+### 8a. Backend suite — confirm no AJL skips
+
+```bash
+backend/.venv/bin/python3 -m unittest discover -s backend -p "test_*.py" -v 2>&1 | grep -E "ajl|AJL|Numpy"
+```
+
+Expected: `NumpyAvailabilityTest.test_numpy_is_importable ... ok` and all five `AharonovJonesLandauInvariantTests` lines show `ok` (not `skipped`).
+
+### 8b. Standalone smoke — confirm non-null jones fields
+
+Start the backend (via launcher or uvicorn), then submit and poll a simulator job:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/jobs/submit \
+  -H 'Content-Type: application/json' \
+  -d '{"backend_name":"qiskit_simulator","braid_word":"s1 s2^-1 s1 s2^-1","shots":512,"optimization_level":1,"closure_method":"trace"}' \
+  | python3 -m json.tool
+
+# Extract job_id from the submit response, then poll:
+curl -s -X POST http://127.0.0.1:8000/api/jobs/poll \
+  -H 'Content-Type: application/json' \
+  -d '{"job_id":"<sim-job-id>"}' \
+  | python3 -m json.tool
+```
+
+Pass conditions:
+- `jones_value_real` is a float (not `null`)
+- `jones_polynomial` starts with `V(t) =` and does not contain `unavailable`
+- `jones_root_of_unity` is `5`
