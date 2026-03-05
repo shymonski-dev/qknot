@@ -22,20 +22,25 @@ _runtime_job_metadata_store: dict[str, dict] = {}
 _knotinfo_catalog_cache: dict | None = None
 
 # Catalog entries provide deterministic outputs for known notations.
+# Catalog entries provide verified braid words for known knots.
+# Braids verified against KnotInfo minimum representations and mathematical Jones values.
+# Trefoil: T(3,2) 3-braid (= T(2,3), right-handed), V(exp(2πi/5)) = -0.809017 + 1.314328i
+# Figure-eight: KnotInfo minimum braid, V(exp(2πi/5)) = -1.236068 (= 1 - √5, real, amphichiral)
+# Cinquefoil: Markov stabilization of σ₁⁵, V(exp(2πi/5)) = -0.381966 (= -1/φ², real)
 _DOWKER_BRAID_CATALOG = {
     (4, 6, 2): {
         "knot_name": "Trefoil Knot (3_1)",
-        "braid_word": "s1 s2^-1 s1 s2^-1",
+        "braid_word": "s1 s2 s1 s2",
         "root_of_unity": 5,
     },
     (4, 6, 8, 2): {
         "knot_name": "Figure-Eight Knot (4_1)",
-        "braid_word": "s1 s2^-1 s1 s2 s1^-1 s2",
+        "braid_word": "s1 s2^-1 s1 s2^-1",
         "root_of_unity": 5,
     },
     (6, 8, 10, 2, 4): {
         "knot_name": "Cinquefoil Knot (5_1)",
-        "braid_word": "s1 s2 s1 s2 s1 s2^-1 s1",
+        "braid_word": "s1 s1 s1 s1 s1 s2",
         "root_of_unity": 5,
     },
 }

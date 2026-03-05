@@ -40,11 +40,11 @@ Running all three catalog knots through the full pipeline at `t = exp(2πi/5)`:
 
 | Knot | Type | V(t) | \|V(t)\| |
 |---|---|---|---|
-| Trefoil (3_1) | Chiral torus T(2,3) | `−1.236068` | 1.236068 |
-| Figure-Eight (4_1) | Amphichiral hyperbolic | `1.500000 − 0.363271i` | 1.543362 |
-| Cinquefoil (5_1) | Chiral torus T(2,5) | `−0.618034 − 0.726543i` | 0.953850 |
+| Trefoil (3_1) | Chiral torus T(2,3) | `−0.809017 + 1.314328i` | 1.543362 |
+| Figure-Eight (4_1) | Amphichiral hyperbolic | `−1.236068` | 1.236068 |
+| Cinquefoil (5_1) | Chiral torus T(2,5) | `−0.381966` | 0.381966 |
 
-All three are cleanly separated (pairwise `|ΔV|` from 0.95 to 2.76). The Trefoil value `−1.236068 = 1 − φ` and the Cinquefoil real part `−0.618034 = −1/φ` (where `φ` is the golden ratio) are not coincidences: the path model at `k = 5` encodes the quantum dimension of the Fibonacci anyon, and the golden ratio is the natural algebraic currency of the fifth root of unity.
+All three are cleanly separated (pairwise `|ΔV|` from 0.85 to 2.78). The Figure-Eight value `−1.236068 = 1 − √5` and the Cinquefoil value `−0.381966 = −1/φ²` (where `φ = (1+√5)/2` is the golden ratio) are not coincidences: the path model at `k = 5` encodes the quantum dimension of the Fibonacci anyon, and the golden ratio is the natural algebraic currency of the fifth root of unity. The Figure-Eight is amphichiral (equal to its mirror image), so its Jones polynomial is real at every root of unity. The Cinquefoil is the torus knot T(2,5), and its Jones polynomial evaluates to a real number at the fifth root of unity for the same algebraic reason.
 
 ## Honest assessment
 

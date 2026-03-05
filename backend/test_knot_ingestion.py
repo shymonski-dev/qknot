@@ -20,7 +20,7 @@ class KnotIngestionCompilerTests(unittest.TestCase):
         self.assertEqual(result["dowker_notation_normalized"], "4 6 2")
         self.assertEqual(result["crossing_count"], 3)
         self.assertEqual(result["knot_name"], "Trefoil Knot (3_1)")
-        self.assertEqual(result["braid_word"], "s1 s2^-1 s1 s2^-1")
+        self.assertEqual(result["braid_word"], "s1 s2 s1 s2")
         self.assertEqual(result["root_of_unity"], 5)
         self.assertTrue(result["is_catalog_match"])
 

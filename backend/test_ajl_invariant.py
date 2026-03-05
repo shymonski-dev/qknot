@@ -25,18 +25,18 @@ class NumpyAvailabilityTest(unittest.TestCase):
 @unittest.skipIf(np is None, "numpy is required for Aharonov Jones Landau invariant tests")
 class AharonovJonesLandauInvariantTests(unittest.TestCase):
     def test_returns_complex_value_for_valid_braid(self):
-        value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2^-1 s1 s2^-1")
+        value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2 s1 s2")
         self.assertIsInstance(value, complex)
 
     def test_is_deterministic_for_same_braid(self):
-        first_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2^-1 s1 s2^-1")
-        second_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2^-1 s1 s2^-1")
+        first_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2 s1 s2")
+        second_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2 s1 s2")
         self.assertAlmostEqual(first_value.real, second_value.real, places=12)
         self.assertAlmostEqual(first_value.imag, second_value.imag, places=12)
 
     def test_distinguishes_trefoil_and_figure_eight_braids(self):
-        trefoil_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2^-1 s1 s2^-1")
-        figure_eight_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2^-1 s1 s2 s1^-1 s2")
+        trefoil_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2 s1 s2")
+        figure_eight_value = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2^-1 s1 s2^-1")
         self.assertGreater(abs(trefoil_value - figure_eight_value), 1e-8)
 
     def test_generator_matrix_is_unitary(self):

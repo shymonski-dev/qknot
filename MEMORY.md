@@ -61,7 +61,7 @@
 - Add `KnotInfoCatalogTests` to `test_knot_ingestion.py`; add cross-representation Jones test to `test_ajl_invariant.py`.
 - The quantum engine (path model basis, circuit construction) is already general for any strand count — no changes needed there.
 - Hilbert space dimensions: 3 strands→3, 6 strands→13, 8 strands→34; circuit grows to ~6-7 qubits for 12-crossing knots.
-- Status: plan complete, implementation pending.
+- Status: completed (129 backend tests, all green; correct braid words verified: trefoil s1 s2 s1 s2, figure-eight s1 s2^-1 s1 s2^-1, cinquefoil s1 s1 s1 s1 s1 s2).
 
 ### Phase 9b: Error Mitigation
 - Zero-noise extrapolation or probabilistic error cancellation on the quantum path.

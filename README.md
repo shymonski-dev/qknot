@@ -238,13 +238,13 @@ Q-Knot implements the Aharonov-Jones-Landau (AJL) algorithm (2006) for approxima
 
 Experimentally confirmed results at `t = exp(2πi/5)`:
 
-| Knot | V(t) | Note |
-|---|---|---|
-| Trefoil (3_1) | `−1.236068` | `= 1 − φ`, golden ratio |
-| Figure-Eight (4_1) | `1.500000 − 0.363271i` | amphichiral hyperbolic knot |
-| Cinquefoil (5_1) | `−0.618034 − 0.726543i` | real part `= −1/φ` |
+| Knot | Braid | V(t) | Note |
+|---|---|---|---|
+| Trefoil (3_1) | `s1 s2 s1 s2` | `−0.809017 + 1.314328i` | right-handed T(2,3) |
+| Figure-Eight (4_1) | `s1 s2^-1 s1 s2^-1` | `−1.236068` | `= 1 − √5`, real, amphichiral |
+| Cinquefoil (5_1) | `s1 s1 s1 s1 s1 s2` | `−0.381966` | `= −1/φ²`, real |
 
-All three are cleanly separated by the Jones polynomial. The golden ratio values are exact, not approximate: the Fibonacci anyon representation and the fifth root of unity are algebraically coupled through `φ`.
+All three are cleanly separated by the Jones polynomial. The values are exact: the figure-eight gives `1 − √5` and the cinquefoil gives `−1/φ²` (where `φ = (1+√5)/2` is the golden ratio). Both are real because the figure-eight is amphichiral and the cinquefoil's Jones polynomial evaluates to a real number at the fifth root of unity.
 
 For a full evaluation of where this software stands in the contemporary field — quantum advantage thresholds, topological quantum computing context, and directions for future work — see `docs/field-evaluation.md`.
 
