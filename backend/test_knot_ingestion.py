@@ -106,5 +106,35 @@ class KnotInfoCatalogTests(unittest.TestCase):
         self.assertEqual(result["braid_index"], 6)
 
 
+class HomflyPtTests(unittest.TestCase):
+    def test_tier1_trefoil_has_homfly_pt(self):
+        result = compile_dowker_notation("4 6 2")
+        self.assertIsNotNone(result["homfly_pt"])
+        self.assertIn("v", result["homfly_pt"])
+        self.assertIn("z", result["homfly_pt"])
+
+    def test_tier1_figure_eight_has_homfly_pt(self):
+        result = compile_dowker_notation("4 6 8 2")
+        self.assertIsNotNone(result["homfly_pt"])
+        self.assertEqual(result["homfly_pt"], "(v^(-2)-1+v^2)+(-1)*z^2")
+
+    def test_tier2_knotinfo_knot_has_homfly_pt(self):
+        # 6_1 is in KnotInfo tier-2; it should have a HOMFLY-PT polynomial
+        result = compile_dowker_notation("4 8 12 10 2 6")
+        self.assertTrue(result["is_catalog_match"])
+        self.assertIsNotNone(result["homfly_pt"])
+
+    def test_tier3_fallback_has_no_homfly_pt(self):
+        result = compile_dowker_notation("2 4 6 8 10 12")
+        self.assertFalse(result["is_catalog_match"])
+        self.assertIsNone(result["homfly_pt"])
+
+    def test_homfly_pt_field_always_present(self):
+        # All three tiers must return homfly_pt key (value may be None)
+        for notation in ("4 6 2", "4 8 12 10 2 6", "2 4 6 8 10 12"):
+            result = compile_dowker_notation(notation)
+            self.assertIn("homfly_pt", result, f"homfly_pt key missing for notation: {notation}")
+
+
 if __name__ == "__main__":
     unittest.main()

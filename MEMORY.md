@@ -70,8 +70,8 @@
 - No new dependencies; no frontend changes; simulator path unchanged.
 - Status: completed (139 backend tests, all green).
 
-### Phase 9c: HOMFLY-PT Polynomial
-- Stitch Jones evaluations at multiple roots of unity into the two-variable HOMFLY-PT polynomial.
-- No settled quantum algorithm exists — genuine research frontier.
-- Blocked on Phase 9a and 9b.
-- Status: not started.
+### Phase 9c: Multi-k Jones and HOMFLY-PT
+- `evaluate_jones_multi_k` evaluates Jones at k = 5, 7, 9 (MULTI_K_ROOTS); result includes `jones_multi_k` list.
+- HOMFLY-PT polynomial sourced from KnotInfo database; returned as `homfly_pt` string from `compile_dowker_notation`.
+- Note: multi-root Jones evaluations cannot reconstruct HOMFLY-PT (Jones samples a 1D slice of a 2D space). The two fields are independent.
+- Status: completed (150 backend tests, all green).

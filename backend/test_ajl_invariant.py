@@ -69,5 +69,49 @@ class AharonovJonesLandauInvariantTests(unittest.TestCase):
             msg="Figure-eight Jones value must be real (amphichiral knot)")
 
 
+@unittest.skipIf(np is None, "numpy is required for multi-k Jones tests")
+class JonesMultiKTests(unittest.TestCase):
+    def test_returns_list_for_valid_braid(self):
+        results = quantum_engine.evaluate_jones_multi_k("s1 s2 s1 s2")
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+
+    def test_result_entries_have_required_fields(self):
+        results = quantum_engine.evaluate_jones_multi_k("s1 s2 s1 s2")
+        for entry in results:
+            self.assertIn("k", entry)
+            self.assertIn("real", entry)
+            self.assertIn("imag", entry)
+            self.assertIn("polynomial", entry)
+
+    def test_default_roots_are_5_7_9(self):
+        results = quantum_engine.evaluate_jones_multi_k("s1 s2 s1 s2")
+        ks = [entry["k"] for entry in results]
+        self.assertIn(5, ks)
+        self.assertIn(7, ks)
+        self.assertIn(9, ks)
+
+    def test_k5_matches_single_evaluation(self):
+        results = quantum_engine.evaluate_jones_multi_k("s1 s2 s1 s2")
+        k5_entry = next(e for e in results if e["k"] == 5)
+        reference = quantum_engine.evaluate_jones_at_root_of_unity("s1 s2 s1 s2", root_of_unity=5)
+        self.assertAlmostEqual(k5_entry["real"], reference.real, places=6)
+        self.assertAlmostEqual(k5_entry["imag"], reference.imag, places=6)
+
+    def test_even_k_is_skipped(self):
+        results = quantum_engine.evaluate_jones_multi_k("s1 s2 s1 s2", roots_of_unity=(5, 6, 7))
+        ks = [entry["k"] for entry in results]
+        self.assertNotIn(6, ks)
+        self.assertIn(5, ks)
+        self.assertIn(7, ks)
+
+    def test_values_differ_across_k(self):
+        results = quantum_engine.evaluate_jones_multi_k("s1 s2 s1 s2")
+        k5 = next(e for e in results if e["k"] == 5)
+        k7 = next(e for e in results if e["k"] == 7)
+        diff = abs(complex(k5["real"], k5["imag"]) - complex(k7["real"], k7["imag"]))
+        self.assertGreater(diff, 1e-6)
+
+
 if __name__ == "__main__":
     unittest.main()

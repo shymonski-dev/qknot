@@ -15,6 +15,7 @@ AUTO_RUNTIME_CHANNELS = ("ibm_quantum_platform", "ibm_cloud", "ibm_quantum")
 DEFAULT_ROOT_OF_UNITY = 5
 DEFAULT_CLOSURE_METHOD = "trace"
 ZNE_SCALE_FACTORS = (1, 3, 5)
+MULTI_K_ROOTS = (5, 7, 9)
 
 SIMULATOR_BACKEND_NAME = "qiskit_simulator"
 _SIM_JOB_ID_PREFIX = "sim-"
@@ -33,16 +34,19 @@ _DOWKER_BRAID_CATALOG = {
         "knot_name": "Trefoil Knot (3_1)",
         "braid_word": "s1 s2 s1 s2",
         "root_of_unity": 5,
+        "homfly_pt": "(2*v^2-v^4)+(v^2)*z^2",
     },
     (4, 6, 8, 2): {
         "knot_name": "Figure-Eight Knot (4_1)",
         "braid_word": "s1 s2^-1 s1 s2^-1",
         "root_of_unity": 5,
+        "homfly_pt": "(v^(-2)-1+v^2)+(-1)*z^2",
     },
     (6, 8, 10, 2, 4): {
         "knot_name": "Cinquefoil Knot (5_1)",
         "braid_word": "s1 s1 s1 s1 s1 s2",
         "root_of_unity": 5,
+        "homfly_pt": "(3*v^4-2*v^6)+(4*v^4-v^6)*z^2+(v^4)*z^4",
     },
 }
 
@@ -115,11 +119,13 @@ def _load_knotinfo_catalog() -> dict:
             if dt_key is None:
                 continue
             braid_word = _parse_knotinfo_braid_notation(braid_raw)
+            homfly_raw = row.get("homfly_polynomial") or None
             catalog[dt_key] = {
                 "knot_name": row.get("name", ""),
                 "braid_word": braid_word,
                 "braid_index": int(row["braid_index"]) if row.get("braid_index") else None,
                 "root_of_unity": DEFAULT_ROOT_OF_UNITY,
+                "homfly_pt": homfly_raw if homfly_raw else None,
             }
         except Exception:
             continue
@@ -293,6 +299,7 @@ def compile_dowker_notation(dowker_notation: str):
             "braid_word": catalog_entry["braid_word"],
             "braid_index": None,
             "root_of_unity": catalog_entry["root_of_unity"],
+            "homfly_pt": catalog_entry.get("homfly_pt"),
             "is_catalog_match": True,
         }
 
@@ -306,6 +313,7 @@ def compile_dowker_notation(dowker_notation: str):
             "braid_word": knotinfo_entry["braid_word"],
             "braid_index": knotinfo_entry["braid_index"],
             "root_of_unity": knotinfo_entry["root_of_unity"],
+            "homfly_pt": knotinfo_entry.get("homfly_pt"),
             "is_catalog_match": True,
         }
 
@@ -317,6 +325,7 @@ def compile_dowker_notation(dowker_notation: str):
         "braid_word": _compile_tokens_to_braid(parsed_tokens),
         "braid_index": None,
         "root_of_unity": DEFAULT_ROOT_OF_UNITY,
+        "homfly_pt": None,
         "is_catalog_match": False,
     }
 
@@ -569,6 +578,33 @@ def evaluate_jones_at_root_of_unity(
 
     jones_value = ((-ajl_context["a_parameter"]) ** (-3 * braid_analysis["net_writhe"])) * bracket_value
     return complex(jones_value)
+
+
+def evaluate_jones_multi_k(
+    braid_word: str,
+    roots_of_unity: tuple[int, ...] = MULTI_K_ROOTS,
+) -> list[dict]:
+    """Evaluate the Jones polynomial at multiple roots of unity.
+
+    Returns a list of dicts [{k, real, imag, polynomial}] for each valid k.
+    Even k values and k < 5 are skipped (degenerate path model representations).
+    Individual k failures are skipped silently.
+    """
+    results = []
+    for k in roots_of_unity:
+        if k < 5 or k % 2 == 0:
+            continue
+        try:
+            value = evaluate_jones_at_root_of_unity(braid_word, root_of_unity=k)
+            results.append({
+                "k": k,
+                "real": round(float(value.real), 8),
+                "imag": round(float(value.imag), 8),
+                "polynomial": _format_jones_output(value, k),
+            })
+        except Exception:
+            pass
+    return results
 
 
 def _fold_gates(circuit, scale_factor: int):
@@ -1163,6 +1199,13 @@ def format_completed_job_result(
         else None
     )
 
+    jones_multi_k = []
+    if braid_word:
+        try:
+            jones_multi_k = evaluate_jones_multi_k(braid_word)
+        except Exception:
+            pass
+
     return {
         "job_id": resolve_job_id(job),
         "backend": backend_name_hint or resolve_job_backend_name(job) or "unknown",
@@ -1180,6 +1223,7 @@ def format_completed_job_result(
         "zne_classical_reference": round(classical_ancilla_ref, 8) if classical_ancilla_ref is not None else None,
         "zne_deviation_raw": round(zne_deviation_raw, 8) if zne_deviation_raw is not None else None,
         "zne_deviation_corrected": round(zne_deviation_corrected, 8) if zne_deviation_corrected is not None else None,
+        "jones_multi_k": jones_multi_k,
         "status": "COMPLETED",
     }
 
@@ -1437,7 +1481,7 @@ def run_knot_experiment(
     """
     Submits a knot evaluation circuit to IBM Quantum hardware using Qiskit Runtime.
     """
-    job, backend, channel_used, _ = _build_and_submit_knot_job(
+    job, backend, channel_used, _, _zne = _build_and_submit_knot_job(
         token=token,
         backend_name=backend_name,
         braid_word=braid_word,
@@ -1515,6 +1559,12 @@ def run_simulator_experiment(
             f"ancilla expectation={expectation:.6f}"
         )
 
+    jones_multi_k = []
+    try:
+        jones_multi_k = evaluate_jones_multi_k(braid_word)
+    except Exception:
+        pass
+
     job_id = f"{_SIM_JOB_ID_PREFIX}{uuid.uuid4().hex[:12]}"
 
     _simulator_result_store[job_id] = {
@@ -1528,6 +1578,7 @@ def run_simulator_experiment(
         "jones_value_real": float(jones_value.real) if jones_value is not None else None,
         "jones_value_imag": float(jones_value.imag) if jones_value is not None else None,
         "jones_root_of_unity": DEFAULT_ROOT_OF_UNITY,
+        "jones_multi_k": jones_multi_k,
         "status": "COMPLETED",
     }
 

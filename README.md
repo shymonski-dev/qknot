@@ -217,11 +217,31 @@ Completed result payloads include:
 
 When ZNE is working correctly, `zne_deviation_corrected < zne_deviation_raw`. The ancilla observable `⟨Z_ancilla⟩ = Re(⟨0|U|0⟩)` is the `(0,0)` matrix element of the braid representation; the Jones polynomial continues to be computed classically from the braid word.
 
+## Topological invariants
+
+Q-Knot reports two classes of invariant alongside each experiment:
+
+**Jones polynomial at multiple roots of unity** (quantum-computed, all knots):
+- Evaluated at `k = 5, 7, 9` (i.e. `t = exp(2πi/k)`) using the path model representation.
+- Returned in the experiment result as `jones_multi_k`: a list of `{k, real, imag, polynomial}` entries.
+- Each evaluation is an independent application of the AJL algorithm at that root of unity.
+- Valid k values: odd integers ≥ 5. Even k values are skipped (degenerate path model representations).
+
+**HOMFLY-PT polynomial** (from KnotInfo database, catalog knots only):
+- Returned in the ingestion result as `homfly_pt`: a two-variable polynomial string in variables `v` and `z`.
+- Available for all 2,979 KnotInfo catalog knots (all prime knots up to 13+ crossings).
+- `null` for non-catalog knots resolved by the deterministic fallback.
+- Source: KnotInfo Indiana database via the `database_knotinfo` Python package. Not quantum-computed.
+- The HOMFLY-PT polynomial contains strictly more topological information than the Jones polynomial; it distinguishes knot pairs that Jones alone cannot separate.
+
+Note: the Jones polynomial is a specialisation of HOMFLY-PT (obtained by substituting `a = t⁻¹, z = t^{1/2} − t^{−1/2}`). Reconstructing the full two-variable HOMFLY-PT from Jones evaluations at multiple roots of unity is mathematically impossible — the Jones samples lie on a one-dimensional slice of HOMFLY-PT's two-dimensional parameter space. Q-Knot's `homfly_pt` field is therefore sourced directly from the KnotInfo database.
+
 ## Knot ingestion behavior
 
 - The `Knot Ingestion` screen now calls `POST /api/knot/ingest` on the Python backend.
 - Dowker notation is validated server side before braid generation.
 - Validation errors are shown directly in the user interface.
+- Ingest responses include `homfly_pt` (two-variable polynomial string, or `null` for non-catalog knots).
 
 ## Topological verification behavior
 
