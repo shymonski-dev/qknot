@@ -51,6 +51,23 @@ class AharonovJonesLandauInvariantTests(unittest.TestCase):
         self.assertTrue(text.startswith("V(t) ="))
         self.assertIn("exp(2*pi*i/5)", text)
 
+    def test_knotinfo_figure_eight_jones_value_matches_mathematical_value(self):
+        """Phase 9a gate: KnotInfo figure-eight braid gives the known mathematical Jones value.
+
+        V_{4_1}(exp(2πi/5)) = t^{-2} - t^{-1} + 1 - t + t^2 at t=exp(2πi/5) = -1.236068 + 0i.
+        The figure-eight is amphichiral so its Jones polynomial is real at this root.
+        """
+        catalog = quantum_engine._load_knotinfo_catalog()
+        entry = catalog.get((4, 6, 8, 2))
+        self.assertIsNotNone(entry, "Figure-Eight (4,6,8,2) must be in KnotInfo catalog")
+
+        v = quantum_engine.evaluate_jones_at_root_of_unity(entry["braid_word"])
+
+        self.assertAlmostEqual(v.real, -1.2360679774997898, places=5,
+            msg="KnotInfo figure-eight Jones real part must match mathematical value")
+        self.assertAlmostEqual(v.imag, 0.0, places=5,
+            msg="Figure-eight Jones value must be real (amphichiral knot)")
+
 
 if __name__ == "__main__":
     unittest.main()

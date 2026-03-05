@@ -5,3 +5,4 @@ qiskit==2.3.0
 qiskit-ibm-runtime==0.45.1
 numpy==2.4.2
 httpx==0.28.1
+database_knotinfo==0.6

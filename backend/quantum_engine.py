@@ -19,6 +19,7 @@ SIMULATOR_BACKEND_NAME = "qiskit_simulator"
 _SIM_JOB_ID_PREFIX = "sim-"
 _simulator_result_store: dict[str, dict] = {}
 _runtime_job_metadata_store: dict[str, dict] = {}
+_knotinfo_catalog_cache: dict | None = None
 
 # Catalog entries provide deterministic outputs for known notations.
 _DOWKER_BRAID_CATALOG = {
@@ -38,6 +39,87 @@ _DOWKER_BRAID_CATALOG = {
         "root_of_unity": 5,
     },
 }
+
+
+def _parse_knotinfo_braid_notation(notation: str) -> str:
+    """Convert KnotInfo braid notation to Q-Knot sN/sN^-1 format.
+
+    Accepts '{1,-2,1,-2}' or 'BR(n, {1,-2,1,-2})'. Positive n → sN, negative -n → sN^-1.
+    """
+    # Strip BR(n, {...}) wrapper if present
+    notation = re.sub(r"^BR\(\d+,\s*", "", notation.strip()).rstrip(")")
+    notation = notation.strip().lstrip("{").rstrip("}")
+    tokens = []
+    for part in notation.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        n = int(part)
+        if n > 0:
+            tokens.append(f"s{n}")
+        else:
+            tokens.append(f"s{-n}^-1")
+    if not tokens:
+        raise ValueError(f"Empty braid notation from KnotInfo: {notation!r}")
+    return " ".join(tokens)
+
+
+def _parse_knotinfo_dt_key(dt_raw: str) -> tuple | None:
+    """Convert KnotInfo DT notation string to normalized abs-value tuple catalog key.
+
+    Accepts '[4, 6, 2]' format. Returns None if unparseable.
+    """
+    dt_raw = dt_raw.strip().lstrip("[{").rstrip("]}]")
+    dt_raw = dt_raw.replace(",", " ")
+    parts = dt_raw.split()
+    if not parts:
+        return None
+    try:
+        values = tuple(abs(int(p)) for p in parts if p)
+    except ValueError:
+        return None
+    return values if values else None
+
+
+def _load_knotinfo_catalog() -> dict:
+    """Lazily load the KnotInfo database and index by normalized DT tuple.
+
+    Returns {} if database_knotinfo is not installed.
+    Cached after first call.
+    """
+    global _knotinfo_catalog_cache
+    if _knotinfo_catalog_cache is not None:
+        return _knotinfo_catalog_cache
+
+    try:
+        from database_knotinfo import link_list
+    except ImportError:
+        _knotinfo_catalog_cache = {}
+        return _knotinfo_catalog_cache
+
+    catalog = {}
+    rows = link_list()
+    for row in rows[1:]:
+        try:
+            dt_raw = row.get("dt_notation", "")
+            braid_raw = row.get("braid_notation", "")
+            if not dt_raw or not braid_raw:
+                continue
+            dt_key = _parse_knotinfo_dt_key(dt_raw)
+            if dt_key is None:
+                continue
+            braid_word = _parse_knotinfo_braid_notation(braid_raw)
+            catalog[dt_key] = {
+                "knot_name": row.get("name", ""),
+                "braid_word": braid_word,
+                "braid_index": int(row["braid_index"]) if row.get("braid_index") else None,
+                "root_of_unity": DEFAULT_ROOT_OF_UNITY,
+            }
+        except Exception:
+            continue
+
+    _knotinfo_catalog_cache = catalog
+    return catalog
 
 
 def parse_braid_word(braid_word: str):
@@ -194,26 +276,42 @@ def _compile_tokens_to_braid(parsed_tokens: list[int]):
 def compile_dowker_notation(dowker_notation: str):
     parsed_tokens = _normalize_dowker_tokens(dowker_notation)
     absolute_key = tuple(abs(token) for token in parsed_tokens)
+
+    # Tier 1: hardcoded catalog (Phase 8 verified entries, fast path)
     catalog_entry = _DOWKER_BRAID_CATALOG.get(absolute_key)
-
     if catalog_entry:
-        knot_name = catalog_entry["knot_name"]
-        braid_word = catalog_entry["braid_word"]
-        root_of_unity = catalog_entry["root_of_unity"]
-        is_catalog_match = True
-    else:
-        knot_name = f"Dowker Knot ({len(parsed_tokens)} crossings)"
-        braid_word = _compile_tokens_to_braid(parsed_tokens)
-        root_of_unity = DEFAULT_ROOT_OF_UNITY
-        is_catalog_match = False
+        return {
+            "dowker_notation_normalized": " ".join(str(token) for token in parsed_tokens),
+            "crossing_count": len(parsed_tokens),
+            "knot_name": catalog_entry["knot_name"],
+            "braid_word": catalog_entry["braid_word"],
+            "braid_index": None,
+            "root_of_unity": catalog_entry["root_of_unity"],
+            "is_catalog_match": True,
+        }
 
+    # Tier 2: KnotInfo database (2,979 knots up to 13+ crossings, minimum braid words)
+    knotinfo_entry = _load_knotinfo_catalog().get(absolute_key)
+    if knotinfo_entry:
+        return {
+            "dowker_notation_normalized": " ".join(str(token) for token in parsed_tokens),
+            "crossing_count": len(parsed_tokens),
+            "knot_name": knotinfo_entry["knot_name"],
+            "braid_word": knotinfo_entry["braid_word"],
+            "braid_index": knotinfo_entry["braid_index"],
+            "root_of_unity": knotinfo_entry["root_of_unity"],
+            "is_catalog_match": True,
+        }
+
+    # Tier 3: deterministic fallback (topological correctness not guaranteed)
     return {
         "dowker_notation_normalized": " ".join(str(token) for token in parsed_tokens),
         "crossing_count": len(parsed_tokens),
-        "knot_name": knot_name,
-        "braid_word": braid_word,
-        "root_of_unity": root_of_unity,
-        "is_catalog_match": is_catalog_match,
+        "knot_name": f"Dowker Knot ({len(parsed_tokens)} crossings)",
+        "braid_word": _compile_tokens_to_braid(parsed_tokens),
+        "braid_index": None,
+        "root_of_unity": DEFAULT_ROOT_OF_UNITY,
+        "is_catalog_match": False,
     }
 
 
