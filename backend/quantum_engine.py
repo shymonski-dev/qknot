@@ -14,6 +14,7 @@ BRAID_TOKEN_RE = re.compile(r"^s([1-9]\d*)(\^-1)?$")
 AUTO_RUNTIME_CHANNELS = ("ibm_quantum_platform", "ibm_cloud", "ibm_quantum")
 DEFAULT_ROOT_OF_UNITY = 5
 DEFAULT_CLOSURE_METHOD = "trace"
+ZNE_SCALE_FACTORS = (1, 3, 5)
 
 SIMULATOR_BACKEND_NAME = "qiskit_simulator"
 _SIM_JOB_ID_PREFIX = "sim-"
@@ -570,6 +571,58 @@ def evaluate_jones_at_root_of_unity(
     return complex(jones_value)
 
 
+def _fold_gates(circuit, scale_factor: int):
+    """Return a noise-amplified copy of circuit via global gate folding.
+
+    Scale factor n replaces each unitary gate G with G (G† G)^{(n-1)/2}.
+    Measurement, barrier, and reset instructions are passed through unchanged.
+    """
+    if scale_factor == 1:
+        return circuit
+    from qiskit import QuantumCircuit
+
+    n_extra_pairs = (scale_factor - 1) // 2
+    folded = QuantumCircuit(*circuit.qregs, *circuit.cregs)
+    for inst in circuit.data:
+        folded.append(inst)
+        if inst.operation.name in ("measure", "barrier", "reset"):
+            continue
+        for _ in range(n_extra_pairs):
+            try:
+                folded.append(inst.operation.inverse(), inst.qubits, [])
+                folded.append(inst.operation, inst.qubits, [])
+            except Exception:
+                pass  # skip gates that lack an inverse
+    return folded
+
+
+def _richardson_extrapolate(scale_factors: list[float], expectations: list[float]) -> float:
+    """Polynomial Richardson extrapolation to the zero-noise limit.
+
+    Fits a degree-(n-1) polynomial through n (scale, expectation) pairs
+    and evaluates it at scale_factor=0.
+    """
+    import numpy as np
+
+    coeffs = np.polyfit(scale_factors, expectations, deg=len(scale_factors) - 1)
+    return float(np.polyval(coeffs, 0.0))
+
+
+def _compute_classical_ancilla_expectation(
+    braid_word: str,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+) -> float:
+    """Compute Re(U[0,0]) from the path model — noiseless reference for ZNE cross-check.
+
+    The Hadamard test circuit measures ⟨Z_ancilla⟩ = Re(⟨0|U|0⟩) = Re(U[0,0])
+    where U is the braid representation matrix and the work register starts in |0⟩.
+    """
+    braid_analysis = validate_braid_problem_input(braid_word)
+    ajl_context = _build_ajl_context(braid_analysis["strand_count"], root_of_unity)
+    matrix = _compute_braid_representation_matrix(braid_analysis["parsed_braid"], ajl_context)
+    return float(matrix[0, 0].real)
+
+
 def _format_complex_value(value: complex, precision: int = 6) -> str:
     real_part = float(value.real)
     imaginary_part = float(value.imag)
@@ -1034,11 +1087,41 @@ def format_completed_job_result(
     braid_word: str | None = None,
     closure_method: str = DEFAULT_CLOSURE_METHOD,
     root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+    zne_scale_factors: tuple = ZNE_SCALE_FACTORS,
 ):
     result = job.result()
+
+    # Extract ancilla expectation at each ZNE noise level.
+    raw_expectations = []
+    for i in range(len(zne_scale_factors)):
+        try:
+            counts_i = extract_counts_from_pub_result(result[i])
+            _, exp_i = _format_counts_and_expectation(counts_i)
+            raw_expectations.append(exp_i)
+        except Exception:
+            raw_expectations.append(None)
+
+    # Use the scale_factor=1 (first) pub result as canonical counts for display.
     pub_result = result[0]
     counts = extract_counts_from_pub_result(pub_result)
     formatted_counts, expectation = _format_counts_and_expectation(counts)
+
+    # Richardson extrapolation to zero-noise limit.
+    valid_pairs = [(s, e) for s, e in zip(zne_scale_factors, raw_expectations) if e is not None]
+    zne_expectation = None
+    if len(valid_pairs) >= 2:
+        zne_expectation = _richardson_extrapolate(
+            [p[0] for p in valid_pairs],
+            [p[1] for p in valid_pairs],
+        )
+
+    # Classical noiseless reference: Re(U[0,0]) from path model.
+    classical_ancilla_ref = None
+    if braid_word:
+        try:
+            classical_ancilla_ref = _compute_classical_ancilla_expectation(braid_word, root_of_unity)
+        except Exception:
+            pass
 
     jones_value = None
     if braid_word:
@@ -1069,6 +1152,17 @@ def format_completed_job_result(
             f"ancilla expectation={expectation:.6f}"
         )
 
+    zne_deviation_raw = (
+        abs(raw_expectations[0] - classical_ancilla_ref)
+        if raw_expectations and raw_expectations[0] is not None and classical_ancilla_ref is not None
+        else None
+    )
+    zne_deviation_corrected = (
+        abs(zne_expectation - classical_ancilla_ref)
+        if zne_expectation is not None and classical_ancilla_ref is not None
+        else None
+    )
+
     return {
         "job_id": resolve_job_id(job),
         "backend": backend_name_hint or resolve_job_backend_name(job) or "unknown",
@@ -1080,6 +1174,12 @@ def format_completed_job_result(
         "jones_value_real": float(jones_value.real) if jones_value is not None else None,
         "jones_value_imag": float(jones_value.imag) if jones_value is not None else None,
         "jones_root_of_unity": root_of_unity,
+        "zne_noise_factors": list(zne_scale_factors),
+        "zne_raw_expectations": [round(e, 8) if e is not None else None for e in raw_expectations],
+        "zne_ancilla_expectation": round(zne_expectation, 8) if zne_expectation is not None else None,
+        "zne_classical_reference": round(classical_ancilla_ref, 8) if classical_ancilla_ref is not None else None,
+        "zne_deviation_raw": round(zne_deviation_raw, 8) if zne_deviation_raw is not None else None,
+        "zne_deviation_corrected": round(zne_deviation_corrected, 8) if zne_deviation_corrected is not None else None,
         "status": "COMPLETED",
     }
 
@@ -1127,9 +1227,11 @@ def _build_and_submit_knot_job(
         closure_method=closure_method,
     )
     sampler = create_sampler_for_backend(Sampler, backend)
-    job = sampler.run([transpiled_qc], shots=shots)
+    shots_per_level = max(1, shots // len(ZNE_SCALE_FACTORS))
+    zne_circuits = [_fold_gates(transpiled_qc, s) for s in ZNE_SCALE_FACTORS]
+    job = sampler.run(zne_circuits, shots=shots_per_level)
 
-    return job, backend, channel_used, circuit_summary
+    return job, backend, channel_used, circuit_summary, ZNE_SCALE_FACTORS
 
 
 def apply_braid_generator(
@@ -1173,7 +1275,7 @@ def submit_knot_experiment(
     runtime_channel: str | None = None,
     runtime_instance: str | None = None,
 ):
-    job, backend, channel_used, circuit_summary = _build_and_submit_knot_job(
+    job, backend, channel_used, circuit_summary, zne_scale_factors = _build_and_submit_knot_job(
         token=token,
         backend_name=backend_name,
         braid_word=braid_word,
@@ -1189,6 +1291,7 @@ def submit_knot_experiment(
         "braid_word": braid_word,
         "closure_method": closure_method,
         "root_of_unity": DEFAULT_ROOT_OF_UNITY,
+        "zne_scale_factors": zne_scale_factors,
     }
 
     status = resolve_job_status(job)
@@ -1263,6 +1366,7 @@ def poll_knot_experiment_result(
             braid_word=runtime_metadata.get("braid_word"),
             closure_method=runtime_metadata.get("closure_method", DEFAULT_CLOSURE_METHOD),
             root_of_unity=runtime_metadata.get("root_of_unity", DEFAULT_ROOT_OF_UNITY),
+            zne_scale_factors=runtime_metadata.get("zne_scale_factors", ZNE_SCALE_FACTORS),
         )
         _runtime_job_metadata_store.pop(resolved_job_id, None)
         return completed_result

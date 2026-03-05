@@ -91,7 +91,7 @@ class SubmitPollEndToEndTests(unittest.TestCase):
             with patch.object(
                 quantum_engine,
                 "_build_and_submit_knot_job",
-                return_value=(job, _Backend(), "ibm_cloud", expected_circuit_summary),
+                return_value=(job, _Backend(), "ibm_cloud", expected_circuit_summary, (1, 3, 5)),
             ) as build_submit_mock:
                 submitted = quantum_engine.submit_knot_experiment(
                     token="token-123",

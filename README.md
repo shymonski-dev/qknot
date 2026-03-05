@@ -201,6 +201,22 @@ Notes:
 - The token must be provided to the backend process environment.
 - The Runtime Channel and Runtime Instance fields are hidden when `qiskit_simulator` is selected.
 
+## Zero-noise extrapolation (IBM hardware only)
+
+IBM hardware jobs automatically run with zero-noise extrapolation (ZNE) applied to the ancilla Hadamard test observable.
+
+Three noise-amplified circuit variants are submitted as a single batch job at scale factors `[1×, 3×, 5×]` using global gate folding. The total shot budget is split evenly across the three variants. Richardson polynomial extrapolation then estimates the zero-noise ancilla expectation `⟨Z_ancilla⟩`.
+
+Completed result payloads include:
+- `zne_noise_factors` — scale factors used `[1, 3, 5]`
+- `zne_raw_expectations` — ancilla `⟨Z⟩` at each noise level
+- `zne_ancilla_expectation` — Richardson-extrapolated zero-noise estimate
+- `zne_classical_reference` — `Re(U[0,0])` computed from the path model (noiseless ground truth)
+- `zne_deviation_raw` — `|⟨Z⟩_raw − classical_reference|`
+- `zne_deviation_corrected` — `|⟨Z⟩_zne − classical_reference|`
+
+When ZNE is working correctly, `zne_deviation_corrected < zne_deviation_raw`. The ancilla observable `⟨Z_ancilla⟩ = Re(⟨0|U|0⟩)` is the `(0,0)` matrix element of the braid representation; the Jones polynomial continues to be computed classically from the braid word.
+
 ## Knot ingestion behavior
 
 - The `Knot Ingestion` screen now calls `POST /api/knot/ingest` on the Python backend.

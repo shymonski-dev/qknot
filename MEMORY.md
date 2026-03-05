@@ -63,10 +63,12 @@
 - Hilbert space dimensions: 3 strands→3, 6 strands→13, 8 strands→34; circuit grows to ~6-7 qubits for 12-crossing knots.
 - Status: completed (129 backend tests, all green; correct braid words verified: trefoil s1 s2 s1 s2, figure-eight s1 s2^-1 s1 s2^-1, cinquefoil s1 s1 s1 s1 s1 s2).
 
-### Phase 9b: Error Mitigation
-- Zero-noise extrapolation or probabilistic error cancellation on the quantum path.
-- Blocked on Phase 9a (only interesting on non-trivial circuits).
-- Status: not started.
+### Phase 9b: Zero-Noise Extrapolation
+- Global gate folding at scale factors [1, 3, 5] via `_fold_gates`; Richardson extrapolation via `_richardson_extrapolate`.
+- IBM hardware jobs submit three folded circuits as one batch; result includes `zne_ancilla_expectation`, `zne_classical_reference`, and deviation fields.
+- Classical noiseless reference `Re(U[0,0])` provided by `_compute_classical_ancilla_expectation`.
+- No new dependencies; no frontend changes; simulator path unchanged.
+- Status: completed (139 backend tests, all green).
 
 ### Phase 9c: HOMFLY-PT Polynomial
 - Stitch Jones evaluations at multiple roots of unity into the two-variable HOMFLY-PT polynomial.
