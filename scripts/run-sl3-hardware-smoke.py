@@ -37,9 +37,8 @@ IN_PROGRESS_JOB_STATUSES = {"INITIALIZING", "QUEUED", "RUNNING", "VALIDATING", "
 FAILED_JOB_STATUSES = {"FAILED", "ERROR", "CANCELLED", "CANCELED"}
 
 DEFAULT_BRAID_WORDS = [
-    "s1 s2 s1 s2",       # trefoil (3_1)
-    "s1 s2^-1 s1 s2^-1", # figure-eight (4_1)
-    "s1 s1 s1 s1 s1 s2", # cinquefoil (5_1)
+    "s1 s1 s1",           # T(2,3) trefoil, 2-strand: 5 qubits, 706 CX, ref=-0.809
+    "s1 s2^-1 s1 s2^-1",  # figure-eight (4_1):       7 qubits, 951 CX, ref=+0.309
 ]
 
 

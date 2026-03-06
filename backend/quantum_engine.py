@@ -1231,7 +1231,7 @@ def submit_sl3_experiment(
     transpiles it, and submits via SamplerV2. Returns job metadata for
     polling via poll_sl3_experiment_result.
     """
-    from qiskit import transpile
+    from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
 
     circuit = build_sl3_hadamard_circuit_pergenerator(braid_word, root_of_unity)
@@ -1241,11 +1241,27 @@ def submit_sl3_experiment(
         runtime_channel=runtime_channel,
         runtime_instance=runtime_instance,
     )
+    from qiskit import transpile
+
     backend = select_backend(service, backend_name)
-    transpiled = transpile(circuit, backend=backend, optimization_level=3)
+    pm = generate_preset_pass_manager(optimization_level=3, backend=backend)
+    transpiled = pm.run(circuit)
+
+    # _fold_gates inserts gate inverses (e.g. sx† = sxdg) which some backends
+    # reject at submission time. Re-translate each folded circuit to native
+    # basis gates at optimization_level=0 to fix unsupported inverses without
+    # restructuring the ZNE noise scaling.
+    _native_basis = [
+        g for g in (getattr(backend, "operation_names", None) or [])
+        if g not in {"sxdg", "reset", "delay", "measure", "barrier", "if_else", "switch_case"}
+    ] or ["ecr", "cx", "id", "rz", "sx", "x", "cz"]
+
     sampler = create_sampler_for_backend(Sampler, backend)
     shots_per_level = max(1, shots // len(ZNE_SCALE_FACTORS))
-    zne_circuits = [_fold_gates(transpiled, s) for s in ZNE_SCALE_FACTORS]
+    zne_circuits = [
+        transpile(_fold_gates(transpiled, s), basis_gates=_native_basis, optimization_level=0)
+        for s in ZNE_SCALE_FACTORS
+    ]
     job = sampler.run(zne_circuits, shots=shots_per_level)
 
     job_id = resolve_job_id(job)

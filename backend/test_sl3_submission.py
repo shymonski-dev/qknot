@@ -144,13 +144,15 @@ class Sl3SubmitTests(unittest.TestCase):
                                   return_value=_Backend()):
                     with patch.object(quantum_engine, "create_sampler_for_backend",
                                       return_value=_make_mock_sampler(job)):
-                        with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
-                            result = quantum_engine.submit_sl3_experiment(
-                                token="tok",
-                                backend_name="ibm_fez",
-                                braid_word=TREFOIL_BRAID,
-                                shots=512,
-                            )
+                        with patch("qiskit.transpiler.preset_passmanagers.generate_preset_pass_manager",
+                                   return_value=_make_fake_pm()):
+                            with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
+                                result = quantum_engine.submit_sl3_experiment(
+                                    token="tok",
+                                    backend_name="ibm_fez",
+                                    braid_word=TREFOIL_BRAID,
+                                    shots=512,
+                                )
         for field in ("job_id", "backend", "status", "sl_n", "root_of_unity",
                       "braid_word", "circuit_qubits", "zne_noise_factors",
                       "shots_per_noise_level"):
@@ -165,13 +167,15 @@ class Sl3SubmitTests(unittest.TestCase):
                                   return_value=_Backend()):
                     with patch.object(quantum_engine, "create_sampler_for_backend",
                                       return_value=_make_mock_sampler(job)):
-                        with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
-                            result = quantum_engine.submit_sl3_experiment(
-                                token="tok",
-                                backend_name="ibm_fez",
-                                braid_word=TREFOIL_BRAID,
-                                shots=512,
-                            )
+                        with patch("qiskit.transpiler.preset_passmanagers.generate_preset_pass_manager",
+                                   return_value=_make_fake_pm()):
+                            with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
+                                result = quantum_engine.submit_sl3_experiment(
+                                    token="tok",
+                                    backend_name="ibm_fez",
+                                    braid_word=TREFOIL_BRAID,
+                                    shots=512,
+                                )
         self.assertEqual(result["sl_n"], 3)
 
     def test_submit_stores_metadata(self):
@@ -183,13 +187,15 @@ class Sl3SubmitTests(unittest.TestCase):
                                   return_value=_Backend()):
                     with patch.object(quantum_engine, "create_sampler_for_backend",
                                       return_value=_make_mock_sampler(job)):
-                        with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
-                            quantum_engine.submit_sl3_experiment(
-                                token="tok",
-                                backend_name="ibm_fez",
-                                braid_word=TREFOIL_BRAID,
-                                shots=512,
-                            )
+                        with patch("qiskit.transpiler.preset_passmanagers.generate_preset_pass_manager",
+                                   return_value=_make_fake_pm()):
+                            with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
+                                quantum_engine.submit_sl3_experiment(
+                                    token="tok",
+                                    backend_name="ibm_fez",
+                                    braid_word=TREFOIL_BRAID,
+                                    shots=512,
+                                )
         meta = quantum_engine._runtime_job_metadata_store.get("sl3-meta-001", {})
         self.assertEqual(meta.get("experiment_type"), "sl3")
         self.assertEqual(meta.get("braid_word"), TREFOIL_BRAID)
@@ -203,13 +209,15 @@ class Sl3SubmitTests(unittest.TestCase):
                                   return_value=_Backend()):
                     with patch.object(quantum_engine, "create_sampler_for_backend",
                                       return_value=_make_mock_sampler(job)):
-                        with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
-                            result = quantum_engine.submit_sl3_experiment(
-                                token="tok",
-                                backend_name="ibm_fez",
-                                braid_word=TREFOIL_BRAID,
-                                shots=512,
-                            )
+                        with patch("qiskit.transpiler.preset_passmanagers.generate_preset_pass_manager",
+                                   return_value=_make_fake_pm()):
+                            with patch("qiskit.transpile", return_value=_make_fake_transpiled()):
+                                result = quantum_engine.submit_sl3_experiment(
+                                    token="tok",
+                                    backend_name="ibm_fez",
+                                    braid_word=TREFOIL_BRAID,
+                                    shots=512,
+                                )
         self.assertEqual(result["braid_word"], TREFOIL_BRAID)
 
 
@@ -421,6 +429,8 @@ class Sl3PerGeneratorCircuitTests(unittest.TestCase):
             patch.object(quantum_engine, "create_runtime_service", return_value=(service, "ibm_cloud")),
             patch.object(quantum_engine, "select_backend", return_value=_Backend()),
             patch.object(quantum_engine, "create_sampler_for_backend", return_value=_make_mock_sampler(job)),
+            patch("qiskit.transpiler.preset_passmanagers.generate_preset_pass_manager",
+                  return_value=_make_fake_pm(pg_circuit)),
             patch("qiskit.transpile", return_value=pg_circuit),
         ):
             result = quantum_engine.submit_sl3_experiment(
@@ -560,6 +570,17 @@ def _make_fake_transpiled():
     qc.cx(0, 1)
     qc.measure(0, 0)
     return qc
+
+
+def _make_fake_pm(circuit=None):
+    """Fake preset pass manager whose run() returns a fixed circuit."""
+    transpiled = circuit if circuit is not None else _make_fake_transpiled()
+
+    class FakePM:
+        def run(self, qc):
+            return transpiled
+
+    return FakePM()
 
 
 def _make_mock_sampler(job):
