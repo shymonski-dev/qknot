@@ -758,6 +758,261 @@ def evaluate_homfly_at_q(
     }
 
 
+# ---------------------------------------------------------------------------
+# Phase 10b: sl_N colored HOMFLY-PT via quantum group R-matrix
+# ---------------------------------------------------------------------------
+
+def _sln_quantum_dim(sl_n: int, q_val: complex) -> complex:
+    """Quantum dimension [N]_q = q^{N-1} + q^{N-3} + ... + q^{-(N-1)}."""
+    return complex(sum(q_val ** (sl_n - 1 - 2 * j) for j in range(sl_n)))
+
+
+def _build_sln_swap(sl_n: int):
+    """SWAP matrix on C^N ⊗ C^N. Maps |i,j> -> |j,i>."""
+    import numpy as np
+    n_sq = sl_n * sl_n
+    S = np.zeros((n_sq, n_sq), dtype=complex)
+    for i in range(sl_n):
+        for j in range(sl_n):
+            S[j * sl_n + i, i * sl_n + j] = 1.0
+    return S
+
+
+def _build_sln_r_matrix(sl_n: int, q_val: complex):
+    """Unitary R-matrix for sl_N fundamental representation on C^N ⊗ C^N.
+
+    R = i*sin(θ)*I + cos(θ)*SWAP  where q = exp(iθ).
+    Hecke eigenvalues: q on Sym²(C^N), -q^{-1} on Λ²(C^N).
+    Unitary: R†R = I when |q|=1 (roots of unity).
+    Satisfies the Hecke relation (R-q)(R+q^{-1}) = 0 with z = q - q^{-1}.
+    """
+    import numpy as np
+    cos_t = (q_val + complex(1) / q_val) / 2   # (q + q^{-1})/2 = cos(θ)
+    isin_t = (q_val - complex(1) / q_val) / 2  # (q - q^{-1})/2 = i*sin(θ)
+    n_sq = sl_n * sl_n
+    return isin_t * np.eye(n_sq, dtype=complex) + cos_t * _build_sln_swap(sl_n)
+
+
+def _build_sln_std_r_matrix(sl_n: int, q_val: complex):
+    """Standard (non-unitary) quantum group R-matrix for U_q(gl_N).
+
+    R|ij> = q|ij>              if i = j  (diagonal)
+    R|ij> = |ji>               if i < j  (SWAP, no factor)
+    R|ij> = (q-q^{-1})|ij>+|ji>  if i > j  (Hecke off-diagonal)
+
+    Eigenvalues: q on Sym^2(C^N), -q^{-1} on Lambda^2(C^N).
+    Satisfies the Hecke relation (R-q)(R+q^{-1}) = 0.
+    Not unitary at roots of unity; use _build_sln_r_matrix for quantum circuits.
+    """
+    import numpy as np
+    n2 = sl_n * sl_n
+    R = np.zeros((n2, n2), dtype=complex)
+    for i in range(sl_n):
+        for j in range(sl_n):
+            col = i * sl_n + j          # column = input |ij>
+            if i == j:
+                R[col, col] = q_val
+            elif i < j:
+                R[j * sl_n + i, col] = 1.0
+            else:                       # i > j
+                R[j * sl_n + i, col] = 1.0
+                R[col, col] = q_val - 1.0 / q_val
+    return R
+
+
+def _embed_two_site_gate(op, site_i: int, n_sites: int, sl_n: int):
+    """Embed an N^2 x N^2 gate on sites (site_i, site_i+1) into the N^n space."""
+    import numpy as np
+    before = np.eye(sl_n ** site_i, dtype=complex)
+    after_pow = n_sites - site_i - 2
+    after = np.eye(sl_n ** after_pow, dtype=complex) if after_pow > 0 else np.eye(1, dtype=complex)
+    return np.kron(np.kron(before, op), after)
+
+
+def _build_sln_braid_unitary(braid_word: str, sl_n: int, q_val: complex):
+    """Build the N^n x N^n unitary for the braid in the sl_N fundamental representation.
+
+    Returns (U, n_strands). U is the ordered product of R-matrices,
+    one per crossing. R_inv = R† since R is unitary.
+    """
+    import numpy as np
+    parsed = parse_braid_word(braid_word)
+    n_strands = max(gen for gen, _ in parsed) + 1
+    dim = sl_n ** n_strands
+    U = np.eye(dim, dtype=complex)
+    R = _build_sln_r_matrix(sl_n, q_val)
+    R_inv = R.conj().T
+    for gen, is_inv in parsed:
+        mat = R_inv if is_inv else R
+        full = _embed_two_site_gate(mat, gen - 1, n_strands, sl_n)
+        U = full @ U
+    return U, n_strands
+
+
+def _sln_quantum_trace(U, sl_n: int, n_strands: int, q_val: complex) -> complex:
+    """Quantum trace tr_q(U) = tr(U * K^{⊗n}) for sl_N.
+
+    K = diag(q^{N-1}, q^{N-3}, ..., q^{-(N-1)}).
+    tr_q(I) = [N]_q^n  (normalizes to the quantum dimension).
+    """
+    import numpy as np
+    k_diag = np.array([q_val ** (sl_n - 1 - 2 * j) for j in range(sl_n)], dtype=complex)
+    k_tensor = k_diag.copy()
+    for _ in range(n_strands - 1):
+        k_tensor = np.kron(k_tensor, k_diag)
+    return complex(np.dot(np.diag(U), k_tensor))
+
+
+def evaluate_homfly_sln(
+    braid_word: str,
+    sl_n: int = 3,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+) -> dict:
+    """Evaluate HOMFLY-PT at the sl_N specialization via the quantum group R-matrix.
+
+    Computes the Reshetikhin-Turaev invariant using the standard (non-unitary)
+    quantum group R-matrix for U_q(sl_N), giving HOMFLY-PT evaluated at:
+
+        v = q^N,   z = q - q^{-1},   q = exp(2*pi*i / root_of_unity)
+
+    Reshetikhin-Turaev normalization:
+        P(β̂) = conj(v^{-e} * tr_q(U_std) / [N]_q)
+    where U_std is built from the standard (non-unitary) quantum group R-matrix,
+    e = writhe(β), and [N]_q = q^{N-1} + ... + q^{-(N-1)}.
+
+    For N=2 this gives the HOMFLY-PT sl_2 specialization.
+    For N=3 this gives a new HOMFLY-PT slice inaccessible from Jones alone.
+
+    Cross-check: values match _evaluate_homfly_string at (v=q^N, z=q-q^{-1}).
+    Note: use build_sl3_hadamard_circuit for the unitary quantum circuit variant.
+    """
+    import cmath
+    import numpy as np
+    q_val = cmath.exp(2j * cmath.pi / root_of_unity)
+
+    parsed = parse_braid_word(braid_word)
+    n_strands = max(gen for gen, _ in parsed) + 1
+    writhe = sum(-1 if inv else 1 for _, inv in parsed)
+
+    # Build braid unitary with the standard (non-unitary) quantum group R-matrix
+    R = _build_sln_std_r_matrix(sl_n, q_val)
+    R_inv = np.linalg.inv(R)
+    dim = sl_n ** n_strands
+    U = np.eye(dim, dtype=complex)
+    for gen, is_inv in parsed:
+        mat = R_inv if is_inv else R
+        full = _embed_two_site_gate(mat, gen - 1, n_strands, sl_n)
+        U = full @ U
+
+    v_val = q_val ** sl_n
+    qd = _sln_quantum_dim(sl_n, q_val)
+    raw_trace = _sln_quantum_trace(U, sl_n, n_strands, q_val)
+
+    # Reshetikhin-Turaev normalization: P = conj(v^{-e} * tr_q(U_std) / [N]_q)
+    homfly_val = complex(v_val ** (-writhe) * raw_trace / qd).conjugate()
+
+    z_val = q_val - complex(1) / q_val
+    return {
+        "real": round(float(homfly_val.real), 8),
+        "imag": round(float(homfly_val.imag), 8),
+        "sl_n": sl_n,
+        "root_of_unity": root_of_unity,
+        "v_real": round(float(v_val.real), 8),
+        "v_imag": round(float(v_val.imag), 8),
+        "z_real": round(float(z_val.real), 8),
+        "z_imag": round(float(z_val.imag), 8),
+        "q_real": round(float(q_val.real), 8),
+        "q_imag": round(float(q_val.imag), 8),
+    }
+
+
+def build_sl3_hadamard_circuit(
+    braid_word: str,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+):
+    """Build a Hadamard test circuit for the sl_3 HOMFLY-PT specialization.
+
+    Each sl_3 qutrit (states 0,1,2) is encoded in 2 qubits:
+        |0> -> |00>,  |1> -> |01>,  |2> -> |10>  (|11> unused per pair).
+
+    The braid unitary U_braid acts on the qutrit subspace.  It is conjugated by
+    K^{1/2} = diag(q, 1, q^{-1}) per qutrit, giving the K-modified unitary
+
+        U' = K^{n/2} * U_braid * K^{n/2}
+
+    so that the Hadamard test measures Re(<0|U'|0>) where |0> is the qutrit
+    ground state.  This diagonal element contributes to the sl_3 quantum trace.
+
+    Circuit layout:
+        q0          — ancilla (Hadamard test qubit)
+        q1..q_{2n}  — data qubits (2 qubits per strand, qutrit encoding)
+    Total qubits: 2*n_strands + 1.
+
+    The ancilla expectation value <Z> relates to the HOMFLY trace as:
+        <Z> = Re(<0|U'|0>) = Re(K_0^n * U_{0,0}) / |K_0|^n = Re(U'_{0,0})
+    """
+    import cmath
+    import numpy as np
+    from qiskit import QuantumCircuit
+    from qiskit.circuit.library import UnitaryGate
+
+    sl_n = 3
+    q_val = cmath.exp(2j * cmath.pi / root_of_unity)
+
+    parsed = parse_braid_word(braid_word)
+    n_strands = max(gen for gen, _ in parsed) + 1
+
+    U_qutrit, _ = _build_sln_braid_unitary(braid_word, sl_n, q_val)
+    dim_qutrit = sl_n ** n_strands
+
+    # K^{1/2} per qutrit: diag(q^{(N-1-2j)/2}) = diag(q, 1, q^{-1}) for N=3
+    k_half_diag = np.array(
+        [q_val ** ((sl_n - 1 - 2 * j) / 2) for j in range(sl_n)], dtype=complex
+    )
+    k_half_tensor = k_half_diag.copy()
+    for _ in range(n_strands - 1):
+        k_half_tensor = np.kron(k_half_tensor, k_half_diag)
+    K_half = np.diag(k_half_tensor)
+
+    # K-conjugated braid unitary: U' = K^{n/2} @ U @ K^{n/2}
+    U_prime = K_half @ U_qutrit @ K_half
+
+    # Qutrit digit d in {0,1,2} -> 2-qubit state |d> (binary, 2 bits)
+    # Composite qutrit index -> composite qubit index (2 bits per qutrit, big-endian)
+    def qutrit_to_qubit_idx(qutrit_idx: int) -> int:
+        digits, q = [], qutrit_idx
+        for _ in range(n_strands):
+            digits.append(q % sl_n)
+            q //= sl_n
+        digits.reverse()
+        idx = 0
+        for d in digits:
+            idx = idx * 4 + d
+        return idx
+
+    valid_qubit_indices = [qutrit_to_qubit_idx(i) for i in range(dim_qutrit)]
+
+    # Embed U' into the 2^{2n} qubit space; invalid |11> states act as identity
+    n_data_qubits = 2 * n_strands
+    dim_qubit = 1 << n_data_qubits
+    U_qubit = np.eye(dim_qubit, dtype=complex)
+    for i in range(dim_qutrit):
+        for j in range(dim_qutrit):
+            U_qubit[valid_qubit_indices[i], valid_qubit_indices[j]] = U_prime[i, j]
+
+    # Hadamard test circuit: ancilla=q0, data=q1..q_{n_data_qubits}
+    # Data starts in |0> (qutrit ground state = qubit |00...00>)
+    n_qubits = 1 + n_data_qubits
+    qc = QuantumCircuit(n_qubits, 1)
+    qc.h(0)
+    gate_label = f"sl3_U_k{root_of_unity}"
+    controlled_gate = UnitaryGate(U_qubit, label=gate_label).control(1)
+    qc.append(controlled_gate, list(range(n_qubits)))
+    qc.h(0)
+    qc.measure(0, 0)
+    return qc
+
+
 def _fold_gates(circuit, scale_factor: int):
     """Return a noise-amplified copy of circuit via global gate folding.
 

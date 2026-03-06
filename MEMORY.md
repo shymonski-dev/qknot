@@ -82,3 +82,11 @@
 - Public API: `evaluate_homfly_at_q(braid_word, root_of_unity=5)`.
 - KnotInfo string evaluator: `_evaluate_homfly_string(homfly_str, v_val, z_val)`.
 - Status: completed (168 backend tests, all green; new file backend/test_homfly.py, 18 tests).
+
+### Phase 10b: sl_N colored HOMFLY-PT via quantum group R-matrix
+- Standard (non-unitary) Uq(gl_N) R-matrix: `R|ij>=q|ij>` (i=j), `|ji>` (i<j), `(q-q^{-1})|ij>+|ji>` (i>j).
+- Correct RT normalization: `P(β̂) = conj(v^{-e} * tr_q(U_std) / [N]_q)` — conj fixes chirality.
+- Symmetric unitary R (cos·SWAP + i·sin·I) used for quantum circuits but does NOT give HOMFLY-PT.
+- `_build_sln_std_r_matrix(sl_n, q_val)` — standard R; `evaluate_homfly_sln` uses it with conj.
+- `build_sl3_hadamard_circuit` builds unitary quantum circuit (measures Hadamard observable, not HOMFLY directly).
+- Status: completed (200 backend tests, all green; new file backend/test_sl3_homfly.py, 32 tests).
