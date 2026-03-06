@@ -1043,6 +1043,105 @@ def _compute_sl3_classical_reference(
     return float(U_prime[0, 0].real)
 
 
+def _embed_r_for_pergenerator(R_9x9):
+    """Embed a 9×9 qutrit R-matrix into a 16×16 qubit matrix.
+
+    Encoding: qutrit state j → two qubits with Qiskit little-endian index j.
+    For [d_low, d_high] register, qubit index = d_low + 2*d_high.
+    In the 4-qubit two-qutrit space, qubit_col = i_in + 4*j_in where
+    i_in, j_in ∈ {0,1,2} are left/right qutrit indices.
+    """
+    import numpy as np
+
+    R_16 = np.eye(16, dtype=complex)
+    for i_in in range(3):
+        for j_in in range(3):
+            qubit_col = i_in + 4 * j_in
+            for i_out in range(3):
+                for j_out in range(3):
+                    qubit_row = i_out + 4 * j_out
+                    R_16[qubit_row, qubit_col] = R_9x9[i_out * 3 + j_out, i_in * 3 + j_in]
+    return R_16
+
+
+def build_sl3_hadamard_circuit_pergenerator(
+    braid_word: str,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+):
+    """Per-generator Hadamard circuit for sl_3 representation.
+
+    Instead of one large controlled-U for the full braid, applies one
+    controlled-R (or R†) per crossing. Measures the same observable as
+    build_sl3_hadamard_circuit: Re(q^{2n} U_braid[0,0]) = Re(U'[0,0])
+    where U' = K^{n/2} U_braid K^{n/2}.
+
+    The K_half_start factor K^{n/2}|0⟩ = q^n|0⟩ is a global phase on the
+    ground state, implemented as a Phase gate on the ancilla qubit.
+    K_half_end is applied as a per-qutrit controlled diagonal gate after
+    the final R gate.
+
+    Circuit layout: q0=ancilla, q1..q_{2n}=data (2 qubits per qutrit,
+    Qiskit little-endian: qutrit j → qubits 2j+1 (low), 2j+2 (high)).
+    """
+    import cmath
+    import math
+
+    import numpy as np
+    from qiskit import QuantumCircuit
+    from qiskit.circuit.library import UnitaryGate
+
+    sl_n = 3
+    q_val = cmath.exp(2j * cmath.pi / root_of_unity)
+    parsed = parse_braid_word(braid_word)
+    n_strands = max(gen for gen, _ in parsed) + 1
+
+    R = _build_sln_r_matrix(sl_n, q_val)
+    R_inv = R.conj().T
+    R_emb = _embed_r_for_pergenerator(R)
+    R_inv_emb = _embed_r_for_pergenerator(R_inv)
+
+    ctrl_R = UnitaryGate(R_emb, label="R_sl3").control(1)
+    ctrl_R_inv = UnitaryGate(R_inv_emb, label="R†_sl3").control(1)
+
+    # K_half diagonal for one qutrit in qubit space: diag(q^1, q^0, q^{-1}, q^0)
+    # (the j=0,1,2 qutrit states map to qubit indices 0,1,2; index 3 is unused)
+    k_half_diag = np.diag([q_val, 1.0, 1.0 / q_val, 1.0])
+    ctrl_k_half = UnitaryGate(k_half_diag, label="K½").control(1)
+
+    n_data_qubits = 2 * n_strands
+    n_qubits = 1 + n_data_qubits
+    qc = QuantumCircuit(n_qubits, 1)
+
+    # Hadamard on ancilla
+    qc.h(0)
+
+    # K_half_start: K_half|0⟩ = q^{(N-1)/2}|0⟩ = q^1|0⟩ for N=3.
+    # The full n-strand tensor product on |0...0⟩ gives q^n global phase.
+    # Implemented as Phase gate on ancilla to pick up the relative phase.
+    qc.p(2 * math.pi * n_strands / root_of_unity, 0)
+
+    # One controlled-R per crossing
+    for gen, is_inv in parsed:
+        gate = ctrl_R_inv if is_inv else ctrl_R
+        # Generator σ_gen acts on strands gen and gen+1 (1-indexed).
+        # Qubits: strand s → qubits 2s-1 (low), 2s (high).
+        q_low_left = 2 * gen - 1
+        q_high_left = 2 * gen
+        q_low_right = 2 * gen + 1
+        q_high_right = 2 * gen + 2
+        qc.append(gate, [0, q_low_left, q_high_left, q_low_right, q_high_right])
+
+    # K_half_end: per-qutrit controlled diagonal
+    for j in range(n_strands):
+        qc.append(ctrl_k_half, [0, 2 * j + 1, 2 * j + 2])
+
+    # Second Hadamard and measure
+    qc.h(0)
+    qc.measure(0, 0)
+
+    return qc
+
+
 def _format_completed_sl3_result(
     job,
     channel_used: str | None,
@@ -1135,7 +1234,7 @@ def submit_sl3_experiment(
     from qiskit import transpile
     from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
 
-    circuit = build_sl3_hadamard_circuit(braid_word, root_of_unity)
+    circuit = build_sl3_hadamard_circuit_pergenerator(braid_word, root_of_unity)
     service, channel_used = create_runtime_service(
         QiskitRuntimeService=QiskitRuntimeService,
         token=token,

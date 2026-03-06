@@ -133,7 +133,7 @@ Pre-flight guidance:
 - Use an explicit runtime channel for first live run.
 - Recommended value: `ibm_cloud`.
 - Avoid `auto` on first run because some runtime client versions may return a channel error before fallback is attempted.
-- Recommended backend: `ibm_fez` (156 qubits). Alternatives: `ibm_marrakesh`, `ibm_torino`.
+- Recommended backend: `ibm_torino` or `ibm_marrakesh` (Heron r2, 3–5× better EPLG than Eagle r3). Avoid `ibm_fez` for sl_3 circuits — Eagle r3 EPLG is too high for useful signal.
 
 Option A — Python smoke script:
 
@@ -141,7 +141,7 @@ Option A — Python smoke script:
 2. Set environment variables:
    ```bash
    export IBM_QUANTUM_TOKEN="<your-token>"
-   export QKNOT_BACKEND_NAME="ibm_fez"
+   export QKNOT_BACKEND_NAME="ibm_torino"
    export QKNOT_RUNTIME_CHANNEL="ibm_cloud"
    # Optional:
    # export QKNOT_RUNTIME_INSTANCE="<crn>"

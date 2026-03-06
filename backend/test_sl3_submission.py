@@ -340,6 +340,100 @@ class Sl3PollTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Per-generator circuit tests
+# ---------------------------------------------------------------------------
+
+class Sl3PerGeneratorCircuitTests(unittest.TestCase):
+    """Tests for build_sl3_hadamard_circuit_pergenerator."""
+
+    TREFOIL = "s1 s2 s1 s2"
+    FIG8 = "s1 s2^-1 s1 s2^-1"
+
+    def test_trefoil_qubit_count_matches_full_circuit(self):
+        pg = quantum_engine.build_sl3_hadamard_circuit_pergenerator(self.TREFOIL)
+        full = quantum_engine.build_sl3_hadamard_circuit(self.TREFOIL)
+        self.assertEqual(pg.num_qubits, full.num_qubits)
+
+    def test_fig8_qubit_count_matches_full_circuit(self):
+        pg = quantum_engine.build_sl3_hadamard_circuit_pergenerator(self.FIG8)
+        full = quantum_engine.build_sl3_hadamard_circuit(self.FIG8)
+        self.assertEqual(pg.num_qubits, full.num_qubits)
+
+    def test_trefoil_has_single_classical_bit(self):
+        pg = quantum_engine.build_sl3_hadamard_circuit_pergenerator(self.TREFOIL)
+        self.assertEqual(pg.num_clbits, 1)
+
+    def test_circuit_has_measurement(self):
+        pg = quantum_engine.build_sl3_hadamard_circuit_pergenerator(self.TREFOIL)
+        op_names = [instr.operation.name for instr in pg.data]
+        self.assertIn("measure", op_names)
+
+    def test_circuit_has_hadamard_on_ancilla(self):
+        pg = quantum_engine.build_sl3_hadamard_circuit_pergenerator(self.TREFOIL)
+        h_gates = [
+            instr for instr in pg.data
+            if instr.operation.name == "h"
+        ]
+        self.assertGreaterEqual(len(h_gates), 1)
+
+    def test_embed_r_identity_block(self):
+        import numpy as np
+        import cmath
+        q_val = cmath.exp(2j * cmath.pi / 5)
+        R = quantum_engine._build_sln_r_matrix(3, q_val)
+        R_emb = quantum_engine._embed_r_for_pergenerator(R)
+        # The (0,0) block element should match R[0,0]
+        self.assertAlmostEqual(R_emb[0, 0], R[0, 0], places=10)
+
+    def test_embed_r_shape(self):
+        import numpy as np
+        import cmath
+        q_val = cmath.exp(2j * cmath.pi / 5)
+        R = quantum_engine._build_sln_r_matrix(3, q_val)
+        R_emb = quantum_engine._embed_r_for_pergenerator(R)
+        self.assertEqual(R_emb.shape, (16, 16))
+
+    def test_per_generator_differs_from_full_braid_circuit(self):
+        # The two circuits build differently — they should not be identical objects
+        pg = quantum_engine.build_sl3_hadamard_circuit_pergenerator(self.TREFOIL)
+        full = quantum_engine.build_sl3_hadamard_circuit(self.TREFOIL)
+        # Gate counts will differ (per-generator has more small gates)
+        self.assertNotEqual(len(pg.data), len(full.data))
+
+    def test_submit_uses_per_generator_circuit(self):
+        """submit_sl3_experiment must call build_sl3_hadamard_circuit_pergenerator."""
+        from qiskit import QuantumCircuit
+        pg_circuit = QuantumCircuit(7, 1)
+        pg_circuit.h(0)
+        pg_circuit.cx(0, 1)
+        pg_circuit.measure(0, 0)
+
+        calls = []
+
+        def fake_build(braid_word, root_of_unity=5):
+            calls.append(braid_word)
+            return pg_circuit
+
+        job = _RuntimeJob(job_id="sl3-pg-submit", status_sequence=["SUBMITTED"])
+        service = _RuntimeService(job)
+        with (
+            patch.object(quantum_engine, "build_sl3_hadamard_circuit_pergenerator", side_effect=fake_build),
+            patch.object(quantum_engine, "create_runtime_service", return_value=(service, "ibm_cloud")),
+            patch.object(quantum_engine, "select_backend", return_value=_Backend()),
+            patch.object(quantum_engine, "create_sampler_for_backend", return_value=_make_mock_sampler(job)),
+            patch("qiskit.transpile", return_value=pg_circuit),
+        ):
+            result = quantum_engine.submit_sl3_experiment(
+                token="tok",
+                backend_name="ibm_torino",
+                braid_word=self.TREFOIL,
+                shots=512,
+            )
+        self.assertEqual(calls, [self.TREFOIL])
+        self.assertEqual(result["status"], "SUBMITTED")
+
+
+# ---------------------------------------------------------------------------
 # API route tests
 # ---------------------------------------------------------------------------
 
