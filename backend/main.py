@@ -19,9 +19,11 @@ try:
         get_simulator_result,
         list_accessible_backends,
         poll_knot_experiment_result,
+        poll_sl3_experiment_result,
         run_knot_experiment,
         run_simulator_experiment,
         submit_knot_experiment,
+        submit_sl3_experiment,
         verify_topological_mapping,
     )
 except ImportError:
@@ -34,9 +36,11 @@ except ImportError:
         get_simulator_result,
         list_accessible_backends,
         poll_knot_experiment_result,
+        poll_sl3_experiment_result,
         run_knot_experiment,
         run_simulator_experiment,
         submit_knot_experiment,
+        submit_sl3_experiment,
         verify_topological_mapping,
     )
 
@@ -165,6 +169,33 @@ class CircuitGenerationRequest(BaseModel):
             return None
         if not isinstance(value, str):
             raise ValueError("target_backend must be a string when provided.")
+        normalized = value.strip()
+        return normalized or None
+
+
+class Sl3ExperimentRequest(BaseModel):
+    backend_name: str = Field(min_length=1)
+    braid_word: str = Field(min_length=1)
+    shots: int = Field(ge=1, le=100_000)
+    root_of_unity: int = Field(default=5, ge=5, le=21)
+    runtime_channel: Literal["ibm_quantum_platform", "ibm_cloud", "ibm_quantum"] | None = None
+    runtime_instance: str | None = None
+
+    @field_validator("backend_name", "braid_word")
+    @classmethod
+    def strip_and_validate_non_empty(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Field cannot be blank.")
+        return normalized
+
+    @field_validator("runtime_instance", mode="before")
+    @classmethod
+    def normalize_optional_runtime_instance(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("runtime_instance must be a string when provided.")
         normalized = value.strip()
         return normalized or None
 
@@ -323,6 +354,45 @@ async def generate_knot_circuit(req: CircuitGenerationRequest):
             req.optimization_level,
             req.closure_method,
             req.target_backend,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/knot/sl3/submit")
+async def submit_sl3_job(req: Sl3ExperimentRequest):
+    try:
+        ibm_token = _resolve_ibm_token()
+        result = await run_in_threadpool(
+            submit_sl3_experiment,
+            ibm_token,
+            req.backend_name,
+            req.braid_word,
+            req.shots,
+            req.root_of_unity,
+            req.runtime_channel,
+            req.runtime_instance,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/knot/sl3/poll")
+async def poll_sl3_job(req: PollJobRequest):
+    try:
+        ibm_token = _resolve_ibm_token()
+        result = await run_in_threadpool(
+            poll_sl3_experiment_result,
+            ibm_token,
+            req.job_id,
+            req.runtime_channel,
+            req.runtime_instance,
         )
         return result
     except ValueError as e:

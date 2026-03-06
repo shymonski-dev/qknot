@@ -1013,6 +1013,211 @@ def build_sl3_hadamard_circuit(
     return qc
 
 
+def _compute_sl3_classical_reference(
+    braid_word: str,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+) -> float:
+    """Classical noiseless reference for the sl_3 Hadamard circuit.
+
+    Returns Re(U'[0,0]) where U' = K^{n/2} @ U_braid @ K^{n/2} is the
+    K-conjugated sl_3 braid unitary used in build_sl3_hadamard_circuit.
+    This is the ideal value the Hadamard test ancilla expectation would
+    measure without noise.
+    """
+    import cmath
+    import numpy as np
+
+    sl_n = 3
+    q_val = cmath.exp(2j * cmath.pi / root_of_unity)
+    parsed = parse_braid_word(braid_word)
+    n_strands = max(gen for gen, _ in parsed) + 1
+    U_qutrit, _ = _build_sln_braid_unitary(braid_word, sl_n, q_val)
+    k_half_diag = np.array(
+        [q_val ** ((sl_n - 1 - 2 * j) / 2) for j in range(sl_n)], dtype=complex
+    )
+    k_half_tensor = k_half_diag.copy()
+    for _ in range(n_strands - 1):
+        k_half_tensor = np.kron(k_half_tensor, k_half_diag)
+    K_half = np.diag(k_half_tensor)
+    U_prime = K_half @ U_qutrit @ K_half
+    return float(U_prime[0, 0].real)
+
+
+def _format_completed_sl3_result(
+    job,
+    channel_used: str | None,
+    runtime_instance: str | None,
+    braid_word: str | None,
+    root_of_unity: int,
+    backend_name_hint: str | None = None,
+) -> dict:
+    """Format a completed IBM hardware sl_3 Hadamard circuit result."""
+    result = job.result()
+    counts = extract_counts_from_pub_result(result[0])
+    formatted_counts, expectation = _format_counts_and_expectation(counts)
+
+    classical_ref = None
+    if braid_word:
+        try:
+            classical_ref = _compute_sl3_classical_reference(braid_word, root_of_unity)
+        except Exception:
+            pass
+
+    deviation = (
+        round(abs(expectation - classical_ref), 8)
+        if classical_ref is not None
+        else None
+    )
+    return {
+        "job_id": resolve_job_id(job),
+        "backend": resolve_job_backend_name(job) or backend_name_hint or "unknown",
+        "runtime_channel_used": channel_used,
+        "runtime_instance_used": runtime_instance,
+        "status": "COMPLETED",
+        "sl_n": 3,
+        "root_of_unity": root_of_unity,
+        "braid_word": braid_word,
+        "counts": formatted_counts,
+        "hadamard_expectation": round(expectation, 8),
+        "classical_reference": round(classical_ref, 8) if classical_ref is not None else None,
+        "deviation": deviation,
+    }
+
+
+def submit_sl3_experiment(
+    token: str,
+    backend_name: str,
+    braid_word: str,
+    shots: int,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+    runtime_channel: str | None = None,
+    runtime_instance: str | None = None,
+) -> dict:
+    """Build and submit the sl_3 Hadamard circuit to IBM hardware.
+
+    Constructs build_sl3_hadamard_circuit(braid_word, root_of_unity),
+    transpiles it, and submits via SamplerV2. Returns job metadata for
+    polling via poll_sl3_experiment_result.
+    """
+    from qiskit import transpile
+    from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+
+    circuit = build_sl3_hadamard_circuit(braid_word, root_of_unity)
+    service, channel_used = create_runtime_service(
+        QiskitRuntimeService=QiskitRuntimeService,
+        token=token,
+        runtime_channel=runtime_channel,
+        runtime_instance=runtime_instance,
+    )
+    backend = select_backend(service, backend_name)
+    transpiled = transpile(circuit, backend=backend, optimization_level=3)
+    sampler = create_sampler_for_backend(Sampler, backend)
+    job = sampler.run([transpiled], shots=shots)
+
+    job_id = resolve_job_id(job)
+    _runtime_job_metadata_store[job_id] = {
+        "experiment_type": "sl3",
+        "sl_n": 3,
+        "braid_word": braid_word,
+        "root_of_unity": root_of_unity,
+    }
+
+    status = resolve_job_status(job)
+    if status == "UNKNOWN":
+        status = "SUBMITTED"
+
+    return {
+        "job_id": job_id,
+        "backend": resolve_backend_name(backend),
+        "runtime_channel_used": channel_used,
+        "runtime_instance_used": runtime_instance,
+        "status": status,
+        "sl_n": 3,
+        "root_of_unity": root_of_unity,
+        "braid_word": braid_word,
+        "circuit_qubits": transpiled.num_qubits,
+    }
+
+
+def poll_sl3_experiment_result(
+    token: str,
+    job_id: str,
+    runtime_channel: str | None = None,
+    runtime_instance: str | None = None,
+) -> dict:
+    """Poll an IBM hardware sl_3 Hadamard circuit job.
+
+    Returns status while the job is in-progress. When COMPLETED, returns
+    hadamard_expectation (measured Re(U'[0,0])), classical_reference
+    (noiseless Re(U'[0,0])), and deviation between them.
+    """
+    from qiskit_ibm_runtime import QiskitRuntimeService
+
+    service, channel_used = create_runtime_service(
+        QiskitRuntimeService=QiskitRuntimeService,
+        token=token,
+        runtime_channel=runtime_channel,
+        runtime_instance=runtime_instance,
+    )
+    try:
+        job = service.job(job_id)
+    except Exception as exc:
+        raise ValueError(f"Failed to retrieve runtime job '{job_id}': {exc}") from exc
+
+    resolved_job_id = resolve_job_id(job)
+    status = resolve_job_status(job)
+    backend_name = resolve_job_backend_name(job)
+
+    if status in FAILED_JOB_STATUSES:
+        error_message = resolve_job_error_message(job)
+        response = {
+            "job_id": resolved_job_id,
+            "backend": backend_name or "unknown",
+            "runtime_channel_used": channel_used,
+            "runtime_instance_used": runtime_instance,
+            "status": status,
+        }
+        if error_message:
+            response["detail"] = error_message
+        return response
+
+    if status in IN_PROGRESS_JOB_STATUSES:
+        return {
+            "job_id": resolved_job_id,
+            "backend": backend_name or "unknown",
+            "runtime_channel_used": channel_used,
+            "runtime_instance_used": runtime_instance,
+            "status": status,
+        }
+
+    runtime_metadata = _runtime_job_metadata_store.get(resolved_job_id, {})
+    braid_word = runtime_metadata.get("braid_word")
+    root_of_unity = runtime_metadata.get("root_of_unity", DEFAULT_ROOT_OF_UNITY)
+
+    try:
+        completed_result = _format_completed_sl3_result(
+            job=job,
+            channel_used=channel_used,
+            runtime_instance=runtime_instance,
+            braid_word=braid_word,
+            root_of_unity=root_of_unity,
+            backend_name_hint=backend_name,
+        )
+        _runtime_job_metadata_store.pop(resolved_job_id, None)
+        return completed_result
+    except Exception as exc:
+        if status and status not in COMPLETED_JOB_STATUSES:
+            return {
+                "job_id": resolved_job_id,
+                "backend": backend_name or "unknown",
+                "runtime_channel_used": channel_used,
+                "runtime_instance_used": runtime_instance,
+                "status": status,
+                "detail": str(exc),
+            }
+        raise
+
+
 def _fold_gates(circuit, scale_factor: int):
     """Return a noise-amplified copy of circuit via global gate folding.
 
