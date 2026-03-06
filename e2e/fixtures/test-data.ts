@@ -5,13 +5,13 @@
 export const TREFOIL = {
   dowker: '4 6 2',
   knotName: 'Trefoil Knot (3_1)',
-  braidWord: 's1 s2^-1 s1 s2^-1',
+  braidWord: 's1 s2 s1 s2',
 } as const;
 
 export const FIGURE_EIGHT = {
   dowker: '4 6 8 2',
   knotName: 'Figure-Eight Knot (4_1)',
-  braidWord: 's1 s2^-1 s1 s2 s1^-1 s2',
+  braidWord: 's1 s2^-1 s1 s2^-1',
 } as const;
 
 export const NON_CATALOG = {
