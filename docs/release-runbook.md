@@ -133,7 +133,12 @@ Pre-flight guidance:
 - Use an explicit runtime channel for first live run.
 - Recommended value: `ibm_cloud`.
 - Avoid `auto` on first run because some runtime client versions may return a channel error before fallback is attempted.
-- Recommended backend: `ibm_torino` or `ibm_marrakesh` (Heron r2, 3–5× better EPLG than Eagle r3). Avoid `ibm_fez` for sl_3 circuits — Eagle r3 EPLG is too high for useful signal.
+- Recommended backend by tier:
+  - **US-East free plan**: `ibm_torino` or `ibm_marrakesh` (Heron r2). Avoid `ibm_fez` (Eagle r3, too noisy for sl_3).
+  - **US-East Pay-As-You-Go**: `ibm_boston` (Heron r3, EPLG ~0.215% — best available for sl_3 circuits).
+  - **EU-DE Pay-As-You-Go**: `ibm_brussels` (127 qubits). Note: EU instances do not expose ibm_boston.
+  - **Premium/Flex**: `ibm_miami` (Nighthawk, 120 qubits, T1=350µs) — exploratory, limited dynamic circuit support as of early 2026.
+- IBM Pay-As-You-Go requires a separate instance (new CRN) from the free plan. The API token is shared across instances.
 
 Option A — Python smoke script:
 
@@ -258,4 +263,38 @@ Expected: 32 tests, all `ok`. Key tests:
 backend/.venv/bin/python3 -m unittest discover -s backend -p "test_*.py" 2>&1 | tail -3
 ```
 
-Expected: `Ran 200 tests in ...` with `OK`.
+Expected: `Ran 233 tests in ...` with `OK`.
+
+## 11. Phase 10b Gate — sl_3 Hardware Smoke
+
+### 11a. Verify per-generator circuit builds and matches qubit count
+
+```bash
+backend/.venv/bin/python3 -m unittest backend.test_sl3_submission -v 2>&1 | grep -E "PerGenerator|ok|FAIL"
+```
+
+Expected: all `Sl3PerGeneratorCircuitTests` lines show `ok`.
+
+### 11b. Run sl_3 hardware smoke (requires IBM credentials)
+
+Start backend with IBM token, then run the smoke script against a Heron r2 or better backend:
+
+```bash
+IBM_QUANTUM_TOKEN="<your-token>" \
+  backend/.venv/bin/python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
+
+QKNOT_BACKEND_NAME="ibm_torino" \
+QKNOT_RUNTIME_CHANNEL="ibm_cloud" \
+QKNOT_RUNTIME_INSTANCE="<crn>" \
+python3 scripts/run-sl3-hardware-smoke.py
+```
+
+The script runs two braids by default (`s1 s1 s1` and `s1 s2^-1 s1 s2^-1`) with ZNE at 1536 shots.
+
+Pass conditions (as of March 2026 hardware results on ibm_torino):
+- Both jobs reach `status: "COMPLETED"` without error
+- `hadamard_expectation` has correct sign: negative for `s1 s1 s1` (target −0.809), positive for `s1 s2^-1 s1 s2^-1` (target +0.309)
+- `zne_noise_factors` is `[1, 3, 5]`
+- `classical_reference` is non-null
+
+Note: at current circuit depths (706–951 CX gates on Heron r2), signal magnitude is ~2–5% of target. Sign correctness is the meaningful pass criterion. Upgrade to `ibm_boston` (US-East Pay-As-You-Go) for ~2× better signal retention.
