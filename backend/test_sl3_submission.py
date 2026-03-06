@@ -72,7 +72,8 @@ class _RuntimeJob:
         return self._backend
 
     def result(self):
-        return [self._pub_result]
+        # Return one pub result per ZNE scale factor (1×, 3×, 5×)
+        return [self._pub_result, self._pub_result, self._pub_result]
 
 
 class _RuntimeService:
@@ -151,7 +152,8 @@ class Sl3SubmitTests(unittest.TestCase):
                                 shots=512,
                             )
         for field in ("job_id", "backend", "status", "sl_n", "root_of_unity",
-                      "braid_word", "circuit_qubits"):
+                      "braid_word", "circuit_qubits", "zne_noise_factors",
+                      "shots_per_noise_level"):
             self.assertIn(field, result, f"Missing field: {field}")
 
     def test_submit_sl_n_is_3(self):
@@ -248,9 +250,48 @@ class Sl3PollTests(unittest.TestCase):
                 token="tok", job_id="sl3-poll-done"
             )
         self.assertEqual(result["status"], "COMPLETED")
-        for field in ("hadamard_expectation", "classical_reference", "deviation",
-                      "counts", "sl_n", "root_of_unity", "braid_word"):
+        for field in ("hadamard_expectation", "classical_reference",
+                      "zne_noise_factors", "zne_raw_expectations",
+                      "zne_hadamard_expectation", "zne_deviation_raw",
+                      "zne_deviation_corrected", "counts", "sl_n",
+                      "root_of_unity", "braid_word"):
             self.assertIn(field, result, f"Missing field: {field}")
+
+    def test_completed_poll_zne_noise_factors(self):
+        """zne_noise_factors must be [1, 3, 5]."""
+        job = _RuntimeJob(job_id="sl3-poll-zne-nf", status_sequence=["DONE"])
+        self._seed_metadata("sl3-poll-zne-nf")
+        service = _RuntimeService(job)
+        with patch.object(quantum_engine, "create_runtime_service",
+                          return_value=(service, "ibm_cloud")):
+            result = quantum_engine.poll_sl3_experiment_result(
+                token="tok", job_id="sl3-poll-zne-nf"
+            )
+        self.assertEqual(result["zne_noise_factors"], [1, 3, 5])
+
+    def test_completed_poll_zne_raw_expectations_length(self):
+        """zne_raw_expectations has one entry per scale factor."""
+        job = _RuntimeJob(job_id="sl3-poll-zne-re", status_sequence=["DONE"])
+        self._seed_metadata("sl3-poll-zne-re")
+        service = _RuntimeService(job)
+        with patch.object(quantum_engine, "create_runtime_service",
+                          return_value=(service, "ibm_cloud")):
+            result = quantum_engine.poll_sl3_experiment_result(
+                token="tok", job_id="sl3-poll-zne-re"
+            )
+        self.assertEqual(len(result["zne_raw_expectations"]), 3)
+
+    def test_completed_poll_zne_hadamard_expectation_is_float(self):
+        """Richardson-extrapolated value is a float."""
+        job = _RuntimeJob(job_id="sl3-poll-zne-he", status_sequence=["DONE"])
+        self._seed_metadata("sl3-poll-zne-he")
+        service = _RuntimeService(job)
+        with patch.object(quantum_engine, "create_runtime_service",
+                          return_value=(service, "ibm_cloud")):
+            result = quantum_engine.poll_sl3_experiment_result(
+                token="tok", job_id="sl3-poll-zne-he"
+            )
+        self.assertIsInstance(result["zne_hadamard_expectation"], float)
 
     def test_completed_poll_hadamard_expectation_in_range(self):
         """Counts 80:20 → expectation = (80-20)/100 = 0.6."""
@@ -418,10 +459,13 @@ class Sl3ApiRouteTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 def _make_fake_transpiled():
-    """Minimal object with num_qubits that Sampler.run accepts."""
-    class FakeTranspiled:
-        num_qubits = 7
-    return FakeTranspiled()
+    """Minimal real Qiskit QuantumCircuit that _fold_gates and Sampler.run accept."""
+    from qiskit import QuantumCircuit
+    qc = QuantumCircuit(7, 1)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.measure(0, 0)
+    return qc
 
 
 def _make_mock_sampler(job):

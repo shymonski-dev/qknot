@@ -1050,11 +1050,34 @@ def _format_completed_sl3_result(
     braid_word: str | None,
     root_of_unity: int,
     backend_name_hint: str | None = None,
+    zne_scale_factors: tuple = ZNE_SCALE_FACTORS,
 ) -> dict:
-    """Format a completed IBM hardware sl_3 Hadamard circuit result."""
+    """Format a completed IBM hardware sl_3 Hadamard circuit result.
+
+    Expects one pub result per ZNE scale factor. Applies Richardson
+    extrapolation to the Hadamard expectation values across noise levels.
+    """
     result = job.result()
+
+    raw_expectations = []
+    for i in range(len(zne_scale_factors)):
+        try:
+            counts_i = extract_counts_from_pub_result(result[i])
+            _, exp_i = _format_counts_and_expectation(counts_i)
+            raw_expectations.append(exp_i)
+        except Exception:
+            raw_expectations.append(None)
+
     counts = extract_counts_from_pub_result(result[0])
     formatted_counts, expectation = _format_counts_and_expectation(counts)
+
+    valid_pairs = [(s, e) for s, e in zip(zne_scale_factors, raw_expectations) if e is not None]
+    zne_expectation = None
+    if len(valid_pairs) >= 2:
+        zne_expectation = _richardson_extrapolate(
+            [p[0] for p in valid_pairs],
+            [p[1] for p in valid_pairs],
+        )
 
     classical_ref = None
     if braid_word:
@@ -1063,11 +1086,17 @@ def _format_completed_sl3_result(
         except Exception:
             pass
 
-    deviation = (
-        round(abs(expectation - classical_ref), 8)
-        if classical_ref is not None
+    zne_deviation_raw = (
+        round(abs(raw_expectations[0] - classical_ref), 8)
+        if raw_expectations and raw_expectations[0] is not None and classical_ref is not None
         else None
     )
+    zne_deviation_corrected = (
+        round(abs(zne_expectation - classical_ref), 8)
+        if zne_expectation is not None and classical_ref is not None
+        else None
+    )
+
     return {
         "job_id": resolve_job_id(job),
         "backend": resolve_job_backend_name(job) or backend_name_hint or "unknown",
@@ -1080,7 +1109,11 @@ def _format_completed_sl3_result(
         "counts": formatted_counts,
         "hadamard_expectation": round(expectation, 8),
         "classical_reference": round(classical_ref, 8) if classical_ref is not None else None,
-        "deviation": deviation,
+        "zne_noise_factors": list(zne_scale_factors),
+        "zne_raw_expectations": raw_expectations,
+        "zne_hadamard_expectation": round(zne_expectation, 8) if zne_expectation is not None else None,
+        "zne_deviation_raw": zne_deviation_raw,
+        "zne_deviation_corrected": zne_deviation_corrected,
     }
 
 
@@ -1112,7 +1145,9 @@ def submit_sl3_experiment(
     backend = select_backend(service, backend_name)
     transpiled = transpile(circuit, backend=backend, optimization_level=3)
     sampler = create_sampler_for_backend(Sampler, backend)
-    job = sampler.run([transpiled], shots=shots)
+    shots_per_level = max(1, shots // len(ZNE_SCALE_FACTORS))
+    zne_circuits = [_fold_gates(transpiled, s) for s in ZNE_SCALE_FACTORS]
+    job = sampler.run(zne_circuits, shots=shots_per_level)
 
     job_id = resolve_job_id(job)
     _runtime_job_metadata_store[job_id] = {
@@ -1120,6 +1155,7 @@ def submit_sl3_experiment(
         "sl_n": 3,
         "braid_word": braid_word,
         "root_of_unity": root_of_unity,
+        "zne_scale_factors": ZNE_SCALE_FACTORS,
     }
 
     status = resolve_job_status(job)
@@ -1136,6 +1172,8 @@ def submit_sl3_experiment(
         "root_of_unity": root_of_unity,
         "braid_word": braid_word,
         "circuit_qubits": transpiled.num_qubits,
+        "zne_noise_factors": list(ZNE_SCALE_FACTORS),
+        "shots_per_noise_level": shots_per_level,
     }
 
 
@@ -1193,6 +1231,7 @@ def poll_sl3_experiment_result(
     runtime_metadata = _runtime_job_metadata_store.get(resolved_job_id, {})
     braid_word = runtime_metadata.get("braid_word")
     root_of_unity = runtime_metadata.get("root_of_unity", DEFAULT_ROOT_OF_UNITY)
+    zne_scale_factors = runtime_metadata.get("zne_scale_factors", ZNE_SCALE_FACTORS)
 
     try:
         completed_result = _format_completed_sl3_result(
@@ -1202,6 +1241,7 @@ def poll_sl3_experiment_result(
             braid_word=braid_word,
             root_of_unity=root_of_unity,
             backend_name_hint=backend_name,
+            zne_scale_factors=zne_scale_factors,
         )
         _runtime_job_metadata_store.pop(resolved_job_id, None)
         return completed_result
