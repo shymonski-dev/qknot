@@ -75,3 +75,10 @@
 - HOMFLY-PT polynomial sourced from KnotInfo database; returned as `homfly_pt` string from `compile_dowker_notation`.
 - Note: multi-root Jones evaluations cannot reconstruct HOMFLY-PT (Jones samples a 1D slice of a 2D space). The two fields are independent.
 - Status: completed (150 backend tests, all green).
+
+### Phase 10a: Classical Hecke HOMFLY-PT Evaluation
+- Hecke algebra H_n(q) permutation basis, two-parameter (T_i^2 = q + z*T_i).
+- Ocneanu trace via left-coset recursion; cross-checked against KnotInfo strings.
+- Public API: `evaluate_homfly_at_q(braid_word, root_of_unity=5)`.
+- KnotInfo string evaluator: `_evaluate_homfly_string(homfly_str, v_val, z_val)`.
+- Status: completed (168 backend tests, all green; new file backend/test_homfly.py, 18 tests).

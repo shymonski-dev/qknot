@@ -607,6 +607,157 @@ def evaluate_jones_multi_k(
     return results
 
 
+def _hecke_right_multiply(
+    element: dict, i: int, is_inverse: bool, q: complex, z: complex
+) -> dict:
+    """Right-multiply a Hecke element by T_i or T_i^{-1} (0-indexed generator).
+
+    element: {permutation_tuple: complex_coeff}
+    Rules (T_i^2 = q + z*T_i, T_i^{-1} = (T_i - z)/q):
+      T_w * T_i  length+: T_{w*si}
+      T_w * T_i  length-: z*T_w + q*T_{w*si}
+      T_w * T_i^{-1} length+: q^{-1}*T_{w*si} - (z/q)*T_w
+      T_w * T_i^{-1} length-: T_{w*si}
+    """
+    result: dict = {}
+    for w, coeff in element.items():
+        w_list = list(w)
+        w_list[i], w_list[i + 1] = w_list[i + 1], w_list[i]
+        w_si = tuple(w_list)
+        length_increases = w[i] < w[i + 1]
+        if not is_inverse:
+            if length_increases:
+                result[w_si] = result.get(w_si, 0) + coeff
+            else:
+                result[w] = result.get(w, 0) + coeff * z
+                result[w_si] = result.get(w_si, 0) + coeff * q
+        else:
+            if length_increases:
+                result[w_si] = result.get(w_si, 0) + coeff / q
+                result[w] = result.get(w, 0) - coeff * z / q
+            else:
+                result[w_si] = result.get(w_si, 0) + coeff
+    return result
+
+
+def _hecke_trace_basis(w: tuple, q: complex, z: complex) -> complex:
+    """Compute the Ocneanu trace tr_n(T_w) for a permutation basis element.
+
+    Left-coset decomposition: w = D_k * u, D_k = cycle(k,...,n-1), u in S_{n-1},
+    k = w[n-1].
+      k == n-1: tr_n(T_w) = (1-q)/z * tr_{n-1}(T_{w[:n-1]})
+      k <  n-1: tr_n(T_w) = tr_{n-1}(T_u * T_k * ... * T_{n-3})
+    """
+    n = len(w)
+    if n == 1:
+        return complex(1)
+    k = w[n - 1]
+    if k == n - 1:
+        return (1 - q) / z * _hecke_trace_basis(w[: n - 1], q, z)
+    # D_k^{-1}: v->n-1 if v==k; v->v-1 if k<v<=n-1; v->v if v<k
+    u = tuple((n - 1 if v == k else v - 1 if k < v <= n - 1 else v) for v in w)
+    u_restricted = u[: n - 1]
+    sub: dict = {u_restricted: complex(1)}
+    for idx in range(k, n - 2):
+        sub = _hecke_right_multiply(sub, idx, False, q, z)
+    return _hecke_trace(sub, q, z)
+
+
+def _hecke_trace(element: dict, q: complex, z: complex) -> complex:
+    """Compute the Ocneanu trace of a Hecke element in the permutation basis."""
+    return sum(coeff * _hecke_trace_basis(w, q, z) for w, coeff in element.items())
+
+
+def _build_hecke_context(strand_count: int, q_val: complex, z_param: complex) -> dict:
+    """Build context dict for Hecke algebra H_n with given parameters.
+
+    strand_count: number of braid strands (n).
+    q_val, z_param: two-parameter Hecke algebra (T_i^2 = q + z*T_i).
+    Permutation basis has dimension n!.
+    """
+    return {
+        "strand_count": strand_count,
+        "q": q_val,
+        "z": z_param,
+        "identity": tuple(range(strand_count)),
+    }
+
+
+def _compute_hecke_generator_matrix(
+    context: dict, generator: int, is_inverse: bool
+) -> dict:
+    """Return the Hecke element T_{generator}^{+/-1} in the permutation basis.
+
+    generator: 1-indexed (s1, s2, ...) matching braid_word convention.
+    """
+    n = context["strand_count"]
+    i = generator - 1
+    if i < 0 or i >= n - 1:
+        raise ValueError(f"Generator s{generator} out of range for {n}-strand braid.")
+    element: dict = {context["identity"]: complex(1)}
+    return _hecke_right_multiply(element, i, is_inverse, context["q"], context["z"])
+
+
+def _compute_hecke_braid_matrix(parsed_braid: list, context: dict) -> dict:
+    """Compute the Hecke algebra element for a full braid word.
+
+    parsed_braid: list of (generator, is_inverse) pairs (1-indexed generators).
+    Returns element dict in the permutation basis.
+    """
+    element: dict = {context["identity"]: complex(1)}
+    for generator, is_inverse in parsed_braid:
+        i = generator - 1
+        element = _hecke_right_multiply(element, i, is_inverse, context["q"], context["z"])
+    return element
+
+
+def _evaluate_homfly_string(homfly_str: str, v_val: complex, z_val: complex) -> complex:
+    """Numerically evaluate a KnotInfo HOMFLY-PT string at specific (v, z) values.
+
+    KnotInfo strings use '^' for exponentiation, e.g. '(2*v^2-v^4)+(v^2)*z^2'.
+    """
+    expr = homfly_str.replace("^", "**")
+    return complex(eval(expr, {"__builtins__": {}, "v": v_val, "z": z_val}))  # noqa: S307
+
+
+def evaluate_homfly_at_q(
+    braid_word: str,
+    root_of_unity: int = DEFAULT_ROOT_OF_UNITY,
+) -> dict:
+    """Evaluate HOMFLY-PT numerically via Hecke algebra Ocneanu trace.
+
+    Representation: H_n(q) two-parameter permutation basis.
+    Convention (KnotInfo): v^{-1}*P(L+) - v*P(L-) = z*P(L0).
+    Evaluation point: v = exp(pi*i/k), z_homfly = 1.
+    Hecke parameters: q_hecke = v^2 = exp(2*pi*i/k), z_param = v * z_homfly.
+
+    Returns dict with 'real', 'imag', evaluation-point metadata.
+    """
+    import cmath
+
+    parsed_braid = parse_braid_word(braid_word)
+    strand_count = max(gen for gen, _ in parsed_braid) + 1
+
+    v_val = cmath.exp(1j * cmath.pi / root_of_unity)
+    q_hecke = v_val ** 2
+    z_param = v_val * complex(1)  # z_homfly = 1
+
+    context = _build_hecke_context(strand_count, q_hecke, z_param)
+    element = _compute_hecke_braid_matrix(parsed_braid, context)
+    homfly_val = _hecke_trace(element, q_hecke, z_param)
+
+    return {
+        "real": round(float(homfly_val.real), 8),
+        "imag": round(float(homfly_val.imag), 8),
+        "v_val_real": round(float(v_val.real), 8),
+        "v_val_imag": round(float(v_val.imag), 8),
+        "z_homfly": 1,
+        "q_hecke_real": round(float(q_hecke.real), 8),
+        "q_hecke_imag": round(float(q_hecke.imag), 8),
+        "root_of_unity": root_of_unity,
+    }
+
+
 def _fold_gates(circuit, scale_factor: int):
     """Return a noise-amplified copy of circuit via global gate folding.
 
