@@ -9,6 +9,13 @@ Simulator commit: `a74fd27`
 
 Research-grade invariant upgrade: 2026-03-04
 Phase 8 completed: 2026-03-04
+Phase 9 (KnotInfo catalog, ZNE, multi-k Jones, HOMFLY-PT lookup) completed: 2026-03-05
+Phase 10a (classical Hecke HOMFLY-PT) completed: 2026-03-06
+Phase 10b (sl_N quantum group HOMFLY-PT) completed: 2026-03-06
+Phase 10b commit: `15156f0`
+
+Backend test count as of Phase 10b: 200 (all green).
+Note: full `npm run test:all` gate last run at Phase 8 (`37fc97c`). Backend-only gate confirmed green at Phase 10b.
 
 ## Latest validation evidence
 
@@ -54,6 +61,28 @@ Phase 8 commit: `37fc97c`
 - [x] Full host test sequence passes: `npm run test:all` (119 backend tests, 22 frontend tests, 14 Playwright E2E tests).
 - [x] Generator matrices confirmed unitary (`M†M = I` to `1e-9`) and invertible (`M * M⁻¹ = I`).
 - [x] `_compute_generator_matrix` corrected: braid relation `ρ(σᵢ) = a·I + a⁻¹·Pᵢ` replaces erroneous `a·I + a⁻¹·d·Pᵢ` formula. Unitarity follows from `a² + a⁻² = -d` and `P² = d·P`.
+
+## Phase 9 Checks — KnotInfo Catalog, ZNE, Multi-k Jones, HOMFLY-PT
+
+Phase 9 commits: 9a `c81bf73`, 9b `24c07ec`, 9c `845a6cf`
+
+- [x] `KnotInfoCatalogTests` passes: `compile_dowker_notation` returns correct braid words and metadata for KnotInfo knots (trefoil DT `4 6 2` → braid `s1 s2 s1 s2`; figure-eight DT `4 6 2` negative crossings → braid `s1 s2^-1 s1 s2^-1`; cinquefoil → braid `s1 s1 s1 s1 s1 s2`).
+- [x] `compile_dowker_notation` returns `homfly_pt` string from KnotInfo for catalog knots; `None` for fallback-tier knots.
+- [x] `evaluate_jones_multi_k` returns `jones_multi_k` list with entries for k = 5, 7, 9; even k and k < 5 are skipped.
+- [x] ZNE result fields present in IBM hardware job results: `zne_ancilla_expectation`, `zne_classical_reference`, `zne_deviation_raw`, `zne_deviation_corrected`, `zne_noise_factors`, `zne_raw_expectations`.
+- [x] `_richardson_extrapolate` and `_fold_gates` unit tests pass.
+- [x] Backend suite: 150 tests green at Phase 9c.
+
+## Phase 10 Checks — Hecke Algebra and sl_N Quantum Group HOMFLY-PT
+
+Phase 10a commit: `310d09b` — Phase 10b commit: `15156f0`
+
+- [x] `HeckeInternalsTests` (8 tests, `backend/test_homfly.py`): right-multiply ascending/descending, Hecke quadratic relation, Ocneanu trace base cases pass.
+- [x] `HomflyEvaluationTests` (10 tests): `evaluate_homfly_at_q` matches KnotInfo HOMFLY strings for trefoil, figure-eight, cinquefoil at `v = exp(πi/5)`, `z = 1` to 5 decimal places.
+- [x] `SlNMatrixTests` (15 tests, `backend/test_sl3_homfly.py`): standard R-matrix shape, Hecke relation `(R−q)(R+q⁻¹)=0`, eigenvalues q×6 and −q⁻¹×3, quantum trace normalisation, braid unitary unitarity.
+- [x] `SlNHomflyEvalTests` (10 tests): `evaluate_homfly_sln` matches KnotInfo at sl_2 and sl_3 specialisation points (`v=q^N`, `z=q−q⁻¹`) for trefoil, figure-eight, cinquefoil to 5 decimal places.
+- [x] `Sl3CircuitTests` (6 tests): `build_sl3_hadamard_circuit` builds without error, 7 qubits for 3-strand braid, contains Hadamard gate and measure instruction.
+- [x] Backend suite: 200 tests green at Phase 10b.
 
 ## Optional Live Hardware Smoke Check
 

@@ -195,3 +195,67 @@ Pass conditions:
 - `jones_value_real` is a float (not `null`)
 - `jones_polynomial` starts with `V(t) =` and does not contain `unavailable`
 - `jones_root_of_unity` is `5`
+
+## 9. Phase 9 Gate — KnotInfo Catalog, ZNE, Multi-k Jones
+
+### 9a. KnotInfo catalog lookup
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/knot/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"dowker_notation":"4 6 2"}' \
+  | python3 -m json.tool
+```
+
+Pass conditions:
+- `knot_name` is `"3_1"` (trefoil)
+- `braid_word` is `"s1 s2 s1 s2"`
+- `homfly_pt` is a non-null string (e.g. `"(2*v^2-v^4)+(v^2)*z^2"`)
+- `is_catalog_match` is `true`
+
+### 9b. Multi-k Jones in simulator result
+
+Submit and poll a simulator job, then check:
+- `jones_multi_k` is a list with three entries (k = 5, 7, 9)
+- Each entry has `k`, `real`, `imag`, `polynomial` fields
+
+### 9c. ZNE fields in backend suite
+
+```bash
+backend/.venv/bin/python3 -m unittest discover -s backend -p "test_*.py" -v 2>&1 | grep -E "zne|ZNE|fold|richardson"
+```
+
+Expected: ZNE-related tests show `ok`.
+
+## 10. Phase 10 Gate — HOMFLY-PT (Hecke and sl_N)
+
+### 10a. Hecke algebra HOMFLY-PT
+
+```bash
+backend/.venv/bin/python3 -m unittest backend.test_homfly -v
+```
+
+Expected: 18 tests, all `ok`. Key tests:
+- `HomflyEvaluationTests.test_trefoil_matches_knotinfo_homfly_string`
+- `HomflyEvaluationTests.test_figure_eight_matches_knotinfo_homfly_string`
+- `HomflyEvaluationTests.test_cinquefoil_matches_knotinfo_homfly_string`
+
+### 10b. sl_N quantum group HOMFLY-PT
+
+```bash
+backend/.venv/bin/python3 -m unittest backend.test_sl3_homfly -v
+```
+
+Expected: 32 tests, all `ok`. Key tests:
+- `SlNHomflyEvalTests.test_sl2_trefoil_matches_knotinfo`
+- `SlNHomflyEvalTests.test_sl3_trefoil_matches_knotinfo`
+- `SlNHomflyEvalTests.test_fig8_is_amphichiral_sl3_value_is_real`
+- `Sl3CircuitTests.test_circuit_qubit_count_for_3_strand` (expects 7 qubits)
+
+### 10c. Full backend suite count
+
+```bash
+backend/.venv/bin/python3 -m unittest discover -s backend -p "test_*.py" 2>&1 | tail -3
+```
+
+Expected: `Ran 200 tests in ...` with `OK`.
