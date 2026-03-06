@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "qknot",
   "private": true,
   "version": "0.0.0",
   "engines": {
@@ -32,7 +32,6 @@
     "test:all": "npm run test && npm run test:backend && npm run test:e2e"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "better-sqlite3": "^12.4.1",
